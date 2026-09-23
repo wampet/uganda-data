@@ -1,0 +1,230 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import DistrictSearch from '../../../components/DistrictSearch.astro';
+import {
+  breaksFor, districts, digitsFor, fmtValue, groups, indicatorById, indicatorFacts, indicators, mapNames, mapSlugs,
+  mapValues, national, notes, ranked, source, subregions, unitSuffix,
+} from '../../../lib/census';
+
+const DEFAULT = 'grid';
+const ind = indicatorById.get(DEFAULT)!;
+
+// Everything the page needs to switch indicators without a round trip (~25 KB).
+const payload = {
+  indicators: indicators.map((i) => ({
+    ...i,
+    digits: digitsFor(i),
+    suffix: unitSuffix(i),
+    national: national[i.id],
+    nationalText: fmtValue(i, national[i.id]),
+    breaks: breaksFor(i.id),
+    values: mapValues(i.id),
+    facts: indicatorFacts(i.id),
+    subregions: subregions
+      .map((s) => ({ name: s.name, v: s.values[i.id] }))
+      .filter((s) => s.v != null)
+      .sort((a, b) => b.v! - a.v!),
+  })),
+  names: mapNames,
+};
+
+const top = ranked(DEFAULT).slice(0, 10);
+const bottom = ranked(DEFAULT).slice(-10).reverse();
+const srSorted = payload.indicators.find((i) => i.id === DEFAULT)!.subregions;
+const common = { unit: unitSuffix(ind), digits: digitsFor(ind) };
+---
+
+<Base
+  title="Uganda district by district"
+  description="Explore the 2024 census for every district and city in Uganda: schooling, jobs, electricity, water, health and more, on one map."
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <header class="grid gap-6 pb-6 pt-10 lg:grid-cols-[1.4fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Census 2024 · {districts.length} districts and cities</p>
+        <h1 class="mt-2 text-4xl font-semibold tracking-tight">Uganda, district by district</h1>
+        <p class="mt-2 max-w-2xl text-lg text-ink-2">
+          Pick a question and see how every district compares. Click a district for its full profile.
+        </p>
+      </div>
+      <DistrictSearch />
+    </header>
+
+    <!-- One filter row, above everything it scopes -->
+    <div class="card mb-4 p-3" role="radiogroup" aria-label="What to show on the map" id="picker">
+      <div class="flex flex-wrap gap-x-5 gap-y-2">
+        {groups.map((g) => (
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="mr-1 text-xs font-medium uppercase tracking-wide text-ink-3">{g}</span>
+            {indicators.filter((i) => i.group === g).map((i) => (
+              <button type="button" role="radio" aria-checked={i.id === DEFAULT ? 'true' : 'false'} data-ind={i.id} class="pick">{i.label}</button>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <section class="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+      <Chart
+        id="district-map"
+        title={ind.label}
+        subtitle={ind.question}
+        height={640}
+        source={source}
+        spec={{
+          kind: 'map',
+          ...common,
+          series: [],
+          map: {
+            geo: '/geo/districts.json',
+            values: mapValues(DEFAULT),
+            names: mapNames,
+            slugs: mapSlugs,
+            href: '/places/districts/',
+            breaks: breaksFor(DEFAULT),
+            reference: { label: 'Uganda', value: national[DEFAULT] },
+          },
+        }}
+      />
+
+      <div class="flex flex-col gap-4">
+        <div class="card p-5">
+          <p class="text-sm text-ink-2" id="q">{ind.question}</p>
+          <p class="mt-1 text-sm text-ink-3">Uganda overall</p>
+          <p class="text-4xl font-semibold tracking-tight" id="nat">{fmtValue(ind, national[DEFAULT])}</p>
+          <ul class="mt-3 space-y-1.5 text-ink" id="facts">
+            {indicatorFacts(DEFAULT).map((f) => <li class="border-l-2 border-line pl-3">{f}</li>)}
+          </ul>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          <Chart
+            id="top10"
+            title="Highest 10"
+            height={300}
+            spec={{ kind: 'bar', ...common, categories: top.map((d) => d.name), series: [{ name: ind.label, data: top.map((d) => d.values[DEFAULT]) }], labelWidth: 90 }}
+          />
+          <Chart
+            id="bottom10"
+            title="Lowest 10"
+            height={300}
+            spec={{ kind: 'bar', ...common, categories: bottom.map((d) => d.name), series: [{ name: ind.label, data: bottom.map((d) => d.values[DEFAULT]) }], labelWidth: 90 }}
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-4">
+      <Chart
+        id="subregions"
+        title="By sub-region"
+        subtitle={ind.label}
+        height={440}
+        source={source}
+        spec={{ kind: 'bar', ...common, categories: srSorted.map((s) => s.name), series: [{ name: ind.label, data: srSorted.map((s) => s.v) }], labelWidth: 110 }}
+      />
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <p class="mt-2">
+          From the National Population and Housing Census 2024, via UBOS’s census portal. We turn UBOS’s counts into
+          shares (for example, households on grid power out of all households) so large and small districts compare fairly.
+          Sub-region and national figures are calculated from the summed counts. Colour groups follow natural breaks in the
+          data, so unusually high or low districts stand out.
+        </p>
+        <p class="mt-2 text-sm text-ink-3">
+          Island and lakeside districts such as Kalangala and Buvuma include open water inside their boundaries, so their
+          people-per-km² figures look lower than life on the ground.
+        </p>
+        {notes.map((n) => <p class="mt-2 text-sm text-ink-3">Note: {n}</p>)}
+      </div>
+      <div class="card p-5">
+        <h2 class="text-lg font-semibold">All districts A–Z</h2>
+        <ul class="mt-3 columns-2 gap-4 text-sm sm:columns-3">
+          {districts.map((d) => <li><a class="text-ink-2 hover:text-ink hover:underline" href={`/places/districts/${d.slug}/`}>{d.name}</a></li>)}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script type="application/json" id="census-payload" set:html={JSON.stringify(payload)} />
+
+<script>
+  type Ind = {
+    id: string; label: string; question: string; digits: number; suffix: string; nationalText: string;
+    national: number | null; breaks: number[]; values: Record<string, number | null>; facts: string[];
+    subregions: { name: string; v: number | null }[];
+  };
+  const payload = JSON.parse(document.getElementById('census-payload')!.textContent!) as { indicators: Ind[]; names: Record<string, string> };
+  const byId = new Map(payload.indicators.map((i) => [i.id, i]));
+  const $ = (id: string) => document.getElementById(id)!;
+  const send = (id: string, detail: object) => $(id).dispatchEvent(new CustomEvent('chart:update', { detail }));
+
+  function show(id: string, push = true) {
+    const ind = byId.get(id);
+    if (!ind) return;
+    const common = { unit: ind.suffix, digits: ind.digits };
+    const list = Object.entries(ind.values)
+      .filter(([, v]) => v != null)
+      .sort(([, a], [, b]) => b! - a!)
+      .map(([code, v]) => ({ name: payload.names[code], v }));
+    const top = list.slice(0, 10);
+    const bottom = list.slice(-10).reverse();
+
+    send('district-map', {
+      ...common, title: ind.label, subtitle: ind.question,
+      map: { values: ind.values, breaks: ind.breaks, reference: { label: 'Uganda', value: ind.national } },
+    });
+    send('top10', { ...common, categories: top.map((d) => d.name), series: [{ name: ind.label, data: top.map((d) => d.v) }] });
+    send('bottom10', { ...common, categories: bottom.map((d) => d.name), series: [{ name: ind.label, data: bottom.map((d) => d.v) }] });
+    send('subregions', {
+      ...common, subtitle: ind.label,
+      categories: ind.subregions.map((s) => s.name), series: [{ name: ind.label, data: ind.subregions.map((s) => s.v) }],
+    });
+
+    $('q').textContent = ind.question;
+    $('nat').textContent = ind.nationalText;
+    const facts = $('facts');
+    facts.replaceChildren(
+      ...ind.facts.map((f) => {
+        const li = document.createElement('li');
+        li.className = 'border-l-2 border-line pl-3';
+        li.textContent = f;
+        return li;
+      }),
+    );
+    document.querySelectorAll<HTMLButtonElement>('[data-ind]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.ind === id)));
+    if (push) {
+      const url = new URL(location.href);
+      url.searchParams.set('show', id);
+      history.replaceState(null, '', url);
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('[data-ind]').forEach((b) => b.addEventListener('click', () => show(b.dataset.ind!)));
+  const initial = new URL(location.href).searchParams.get('show');
+  if (initial && initial !== 'grid') show(initial, false);
+</script>
+
+<style>
+  .pick {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    transition: background 0.15s, color 0.15s;
+  }
+  .pick:hover {
+    color: var(--ink);
+    background: var(--grid);
+  }
+  .pick[aria-checked='true'] {
+    background: var(--ink);
+    color: var(--surface);
+    font-weight: 600;
+  }
+</style>

@@ -1,0 +1,197 @@
+---
+// A chart card. The frame, title, legend, table view and source are plain
+// server-rendered HTML (instant, indexable, readable without JS); the plot
+// itself hydrates lazily via scripts/charts.ts.
+import type { ChartSpec } from '../lib/chart-spec';
+import { monthLabel } from '../lib/data';
+
+interface Props {
+  id: string;
+  title: string;
+  subtitle?: string;
+  spec: ChartSpec;
+  height?: number;
+  ranges?: boolean;
+  /** line: initial time range, in months (or 'all') */
+  range?: '12' | '60' | 'all';
+  source?: { title: string; url: string };
+  hint?: string;
+  /** show the "View as table" footer (off for decorative maps like locators) */
+  table?: boolean;
+}
+
+const { id, title, subtitle, height = 320, ranges = false, range = 'all', source, hint, table = true } = Astro.props;
+const n = Astro.props.spec.x?.length ?? 0;
+const spec = { ...Astro.props.spec, startIndex: range === 'all' ? 0 : Math.max(0, n - Number(range)) };
+const fmt = (v: number | null | undefined) =>
+  v == null ? '–' : `${v.toLocaleString('en-UG', { minimumFractionDigits: spec.digits ?? 1, maximumFractionDigits: spec.digits ?? 1 })}${spec.unit ?? ''}`;
+
+// Table view: newest first for time series, highest first for maps.
+const rows =
+  spec.kind === 'line'
+    ? (spec.x ?? []).map((x, i) => [monthLabel(x), ...spec.series.map((s) => fmt(s.data[i]))]).reverse()
+    : spec.kind === 'map'
+      ? Object.entries(spec.map!.values)
+          .sort(([, a], [, b]) => (b ?? -Infinity) - (a ?? -Infinity))
+          .map(([code, v]) => [spec.map!.names[code] ?? code, fmt(v)])
+      : (spec.categories ?? []).map((c, i) => [c, fmt(spec.series[0].data[i])]);
+const heads =
+  spec.kind === 'line' ? ['Month', ...spec.series.map((s) => s.name)] : spec.kind === 'map' ? ['Area', 'Value'] : ['', spec.series[0].name];
+const legend = spec.kind === 'line' && (spec.series.length > 1 || spec.pool);
+---
+
+<figure id={id} data-chart class="chart card p-4 sm:p-5">
+  <script type="application/json" set:html={JSON.stringify(spec)} />
+  <header class="flex items-start justify-between gap-3">
+    <div>
+      <h3 data-title class="text-base font-semibold leading-snug text-ink sm:text-lg">{title}</h3>
+      <p data-subtitle class="mt-0.5 text-sm text-ink-2">{subtitle}</p>
+    </div>
+    <button type="button" data-focus aria-pressed="false" class="icon-btn" title="Focus mode (Esc to exit)" aria-label="Focus mode">
+      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+        <path class="focus-open" d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" />
+        <path class="focus-close" d="M7 3v4H3M13 3v4h4M17 13h-4v4M3 13h4v4" />
+      </svg>
+    </button>
+  </header>
+
+  {(ranges || legend) && (
+    <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+      {ranges && (
+        <div class="seg" role="group" aria-label="Time range">
+          {[['12', '1Y'], ['60', '5Y'], ['all', 'All']].map(([value, label]) => (
+            <button type="button" data-range={value} aria-pressed={value === range ? 'true' : 'false'}>{label}</button>
+          ))}
+        </div>
+      )}
+      {legend && (
+        <ul class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-2">
+          {spec.series.map((s) => (
+            <li class="flex items-center gap-1.5">
+              <span class="key" style={`background:var(--${s.color === 'muted' ? 'muted-series' : `series-${s.color ?? 1}`})`} />
+              {s.name}
+            </li>
+          ))}
+          {spec.pool && (
+            <li class="flex items-center gap-1.5">
+              <span class="key" style="background:var(--series-2)" />
+              <span data-selection-name>{hint ?? 'Click a bar below to compare'}</span>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  )}
+
+  <div class="relative mt-3" style={`height:${height}px`}>
+    <div data-canvas class="absolute inset-0"></div>
+    <div class="chart-skeleton" aria-hidden="true"></div>
+  </div>
+  <p data-selection class="sr-only" aria-live="polite"></p>
+
+  {table && <footer class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-3">
+    {source ? (
+      <span>Source: <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={source.url} rel="noopener">UBOS, {source.title}</a></span>
+    ) : <span />}
+    <details class="table-view">
+      <summary class="cursor-pointer select-none hover:text-ink">View as table</summary>
+      <div class="mt-2 max-h-72 overflow-auto rounded-lg border border-line">
+        <table class="tnum w-full text-left text-sm text-ink-2">
+          <thead class="sticky top-0 bg-surface-2 text-ink">
+            <tr>{heads.map((h) => <th class="px-3 py-1.5 font-medium">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => <tr class="border-t border-line">{r.map((c) => <td class="px-3 py-1">{c}</td>)}</tr>)}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </footer>}
+</figure>
+
+<script>
+  import '../scripts/charts';
+</script>
+
+<style>
+  .icon-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border-radius: 8px;
+    color: var(--ink-3);
+    transition: background 0.15s, color 0.15s;
+  }
+  .icon-btn:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .focus-close { display: none; }
+  .is-focused .focus-open { display: none; }
+  .is-focused .focus-close { display: inline; }
+
+  .seg {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--surface-2);
+  }
+  .seg button {
+    padding: 3px 10px;
+    font-size: 13px;
+    border-radius: 7px;
+    color: var(--ink-2);
+  }
+  .seg button[aria-pressed='true'] {
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+
+  .key {
+    display: inline-block;
+    width: 14px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .chart-skeleton {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface) 50%, var(--surface-2) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  .is-ready .chart-skeleton { display: none; }
+  @keyframes shimmer {
+    to { background-position: -200% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chart-skeleton { animation: none; }
+  }
+
+  /* Focus mode: the card takes over the screen. */
+  .chart.is-focused {
+    position: fixed;
+    inset: 16px;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55);
+  }
+  .chart.is-focused > div.relative {
+    flex: 1 1 auto;
+    height: auto !important;
+    min-height: 320px;
+  }
+  @media (min-width: 1024px) {
+    .chart.is-focused { inset: 40px 64px; padding: 28px; }
+  }
+</style>

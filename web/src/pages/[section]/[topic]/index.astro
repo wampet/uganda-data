@@ -1,0 +1,54 @@
+---
+import Base from '../../../layouts/Base.astro';
+import FileList from '../../../components/FileList.astro';
+import { entriesFor, featured, sections, type Section, type Topic } from '../../../lib/data';
+
+export function getStaticPaths() {
+  return sections.flatMap((section) =>
+    section.topics.map((topic) => ({ params: { section: section.slug, topic: topic.slug }, props: { section, topic } })),
+  );
+}
+
+const { section, topic } = Astro.props as { section: Section; topic: Topic };
+const datasets = entriesFor(topic.slug, 'dataset');
+const publications = entriesFor(topic.slug, 'publication');
+const pages = featured[topic.slug] ?? [];
+---
+
+<Base title={topic.name} description={`${topic.name} statistics for Uganda: charts and every official UBOS table and report.`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href={`/${section.slug}/`}>{section.name}</a>
+    </nav>
+    <header class="pb-8 pt-3">
+      <h1 class="text-4xl font-semibold tracking-tight">{topic.name}</h1>
+    </header>
+
+    {pages.length > 0 ? (
+      <section class="mb-12 grid gap-4 md:grid-cols-2">
+        {pages.map((p) => (
+          <a href={p.href} class="card group p-6 transition hover:-translate-y-0.5 hover:shadow-lg">
+            <span class="text-xs font-medium uppercase tracking-wide text-brand-ink">Interactive</span>
+            <span class="mt-1 block text-xl font-semibold group-hover:underline">{p.title}</span>
+            <span class="mt-2 block text-ink-2">{p.blurb}</span>
+          </a>
+        ))}
+      </section>
+    ) : (
+      <p class="card mb-12 p-5 text-ink-2">
+        Interactive charts for {topic.name.toLowerCase()} are on the way. Meanwhile, every official UBOS table and report on this topic is listed below.
+      </p>
+    )}
+
+    <div class="grid gap-8 lg:grid-cols-2">
+      <section>
+        <h2 class="mb-3 text-xl font-semibold">Data tables <span class="text-ink-3 font-normal">({datasets.length})</span></h2>
+        {datasets.length ? <FileList entries={datasets} label="tables" /> : <p class="text-ink-2">No tables published under this topic yet.</p>}
+      </section>
+      <section>
+        <h2 class="mb-3 text-xl font-semibold">Reports <span class="text-ink-3 font-normal">({publications.length})</span></h2>
+        {publications.length ? <FileList entries={publications} label="reports" /> : <p class="text-ink-2">No reports matched to this topic yet.</p>}
+      </section>
+    </div>
+  </div>
+</Base>

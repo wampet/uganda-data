@@ -1,0 +1,18 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Pipeline: downloaded UBOS pages/files (re-fetchable) and intermediate data
+pipeline/cache/
+pipeline/data/
+
+# Web
+web/node_modules/
+web/dist/
+web/.astro/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/

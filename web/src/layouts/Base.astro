@@ -1,0 +1,181 @@
+---
+import '../styles/global.css';
+import { sections, topicUrl } from '../lib/data';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const { title, description = 'Uganda’s official statistics, made easy to read.' } = Astro.props;
+const fullTitle = title === 'Home' ? 'Uganda in Data — official statistics, made easy' : `${title} · Uganda in Data`;
+const path = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Apply saved theme before paint to avoid a flash. -->
+    <script is:inline>
+      try {
+        const t = localStorage.getItem('theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+  </head>
+  <body class="font-sans">
+    <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 card px-3 py-2">Skip to content</a>
+
+    <header class="sticky top-0 z-40 border-b border-line bg-page/85 backdrop-blur">
+      <div class="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6">
+        <a href="/" class="flex items-center gap-2 font-semibold tracking-tight text-ink">
+          <span class="logo" aria-hidden="true"><i></i><i></i><i></i></span>
+          Uganda in Data
+        </a>
+
+        <nav aria-label="Sections" class="hidden flex-1 lg:block">
+          <ul class="flex items-center gap-1">
+            {sections.map((s) => (
+              <li class="menu relative">
+                <a
+                  href={`/${s.slug}/`}
+                  class:list={['block rounded-lg px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink', path.startsWith(`/${s.slug}/`) && 'bg-surface-2 text-ink font-medium']}
+                >
+                  {s.name}
+                </a>
+                <div class="dropdown card">
+                  <p class="px-3 pb-1 pt-1 text-xs text-ink-3">{s.blurb}</p>
+                  <ul>
+                    {s.topics.map((t) => (
+                      <li>
+                        <a href={topicUrl(s.slug, t.slug)} class="block rounded-md px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
+                          {t.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div class="ml-auto flex items-center gap-2">
+          <details class="mobile-menu relative lg:hidden">
+            <summary class="cursor-pointer list-none rounded-lg px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Topics</summary>
+            <div class="card absolute right-0 top-full mt-2 max-h-[75vh] w-72 overflow-auto p-3 shadow-xl">
+              {sections.map((s) => (
+                <div class="mb-3">
+                  <a href={`/${s.slug}/`} class="block px-2 py-1 text-sm font-semibold text-ink">{s.name}</a>
+                  <ul>
+                    {s.topics.map((t) => (
+                      <li><a href={topicUrl(s.slug, t.slug)} class="block rounded-md px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">{t.name}</a></li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              <a href="/sources/" class="block border-t border-line px-2 pt-2 text-sm text-ink-2 hover:text-ink">All UBOS files</a>
+            </div>
+          </details>
+          <a href="/sources/" class="hidden rounded-lg px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink sm:block">All UBOS files</a>
+          <button id="theme-toggle" type="button" class="grid h-9 w-9 place-items-center rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink" aria-label="Toggle dark mode">
+            <svg class="sun" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="3.5" /><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.4 1.4M14.6 14.6 16 16M4 16l1.4-1.4M14.6 5.4 16 4" /></svg>
+            <svg class="moon" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M16.5 12.5A7 7 0 0 1 7.5 3.5a7 7 0 1 0 9 9Z" /></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="mt-24 border-t border-line">
+      <div class="mx-auto grid max-w-7xl gap-8 px-4 py-10 text-sm text-ink-2 sm:grid-cols-2 sm:px-6 lg:grid-cols-6">
+        <div class="lg:col-span-2">
+          <p class="font-semibold text-ink">Uganda in Data</p>
+          <p class="mt-2 max-w-sm">
+            An independent project that turns the Uganda Bureau of Statistics’ spreadsheets and reports into charts anyone can read.
+            Every number links back to its official UBOS source.
+          </p>
+        </div>
+        {sections.slice(0, 4).map((s) => (
+          <div>
+            <p class="font-medium text-ink">{s.name}</p>
+            <ul class="mt-2 space-y-1">
+              {s.topics.slice(0, 6).map((t) => <li><a class="hover:text-ink" href={topicUrl(s.slug, t.slug)}>{t.name}</a></li>)}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </footer>
+
+    <script>
+      const btn = document.getElementById('theme-toggle')!;
+      btn.addEventListener('click', () => {
+        const root = document.documentElement;
+        const dark = root.dataset.theme
+          ? root.dataset.theme === 'dark'
+          : matchMedia('(prefers-color-scheme: dark)').matches;
+        root.dataset.theme = dark ? 'light' : 'dark';
+        try { localStorage.setItem('theme', root.dataset.theme); } catch {}
+      });
+    </script>
+
+    <style>
+      .logo {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 2px;
+        height: 18px;
+      }
+      .logo i {
+        width: 5px;
+        border-radius: 2px 2px 0 0;
+      }
+      .logo i:nth-child(1) { height: 8px; background: var(--ink); }
+      .logo i:nth-child(2) { height: 13px; background: var(--brand); }
+      .logo i:nth-child(3) { height: 18px; background: #d90000; }
+
+      .dropdown {
+        position: absolute;
+        left: 0;
+        top: 100%;
+        min-width: 240px;
+        margin-top: 6px;
+        padding: 6px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-4px);
+        transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+      }
+      .dropdown::before {
+        content: '';
+        position: absolute;
+        inset: -8px 0 auto 0;
+        height: 8px;
+      }
+      .menu:hover .dropdown,
+      .menu:focus-within .dropdown {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+      }
+
+      .moon { display: none; }
+      :global([data-theme='dark']) .sun { display: none; }
+      :global([data-theme='dark']) .moon { display: block; }
+      @media (prefers-color-scheme: dark) {
+        :global(:root:not([data-theme='light'])) .sun { display: none; }
+        :global(:root:not([data-theme='light'])) .moon { display: block; }
+      }
+    </style>
+  </body>
+</html>

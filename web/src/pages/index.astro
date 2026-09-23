@@ -1,0 +1,131 @@
+---
+import Base from '../layouts/Base.astro';
+import Chart from '../components/Chart.astro';
+import DistrictSearch from '../components/DistrictSearch.astro';
+import { catalog, cpi, entriesFor, fmtDate, fmtPct, monthLabel, sections, topicUrl } from '../lib/data';
+import { facts, headline, headlinePrev, latestMonth, yoyMonths, yoyOf } from '../lib/cpi';
+
+const datasetCount = catalog.filter((c) => c.kind === 'dataset').length;
+const reportCount = catalog.filter((c) => c.kind === 'publication').length;
+const topicCount = sections.reduce((n, s) => n + s.topics.length, 0);
+const latest = catalog.filter((c) => c.kind === 'dataset').slice(0, 6);
+const allFacts = facts();
+---
+
+<Base title="Home">
+  <section class="border-b border-line">
+    <div class="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_1.1fr] lg:items-center lg:py-16">
+      <div>
+        <h1 class="text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">
+          Uganda’s official statistics,<br />made easy to read.
+        </h1>
+        <p class="mt-4 max-w-xl text-lg text-ink-2">
+          UBOS publishes thousands of spreadsheets and reports. We turn them into clear, interactive charts,
+          so anyone can see how prices, jobs, schools, health and more are changing.
+        </p>
+        <div class="mt-6 max-w-xl">
+          <DistrictSearch large />
+          <p class="mt-2 text-sm text-ink-3">
+            See how your district compares on schooling, jobs, power and water, or <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/places/districts/">explore the map</a>.
+          </p>
+        </div>
+        <dl class="mt-8 flex flex-wrap gap-x-10 gap-y-4">
+          <div><dt class="text-sm text-ink-3">Data tables</dt><dd class="text-3xl font-semibold">{datasetCount}</dd></div>
+          <div><dt class="text-sm text-ink-3">Reports</dt><dd class="text-3xl font-semibold">{reportCount.toLocaleString()}</dd></div>
+          <div><dt class="text-sm text-ink-3">Topics</dt><dd class="text-3xl font-semibold">{topicCount}</dd></div>
+        </dl>
+      </div>
+
+      <a href="/economy/prices/inflation/" class="block rounded-[14px] transition hover:-translate-y-0.5 hover:shadow-xl" aria-label="Open the inflation page">
+        <div class="card p-5">
+          <div class="flex items-end justify-between gap-4">
+            <div>
+              <p class="text-sm text-ink-2">Inflation · {monthLabel(latestMonth, true)}</p>
+              <p class="mt-1 text-5xl font-semibold tracking-tight">{fmtPct(headline)}</p>
+            </div>
+            <p class="pb-1 text-sm text-ink-2">
+              {headline > headlinePrev ? '▲' : headline < headlinePrev ? '▼' : '■'} from {fmtPct(headlinePrev)} last month
+            </p>
+          </div>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <section class="mt-10 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <Chart
+        id="home-trend"
+        title="How fast prices are rising"
+        subtitle="Annual inflation, % change on a year earlier"
+        ranges
+        height={280}
+        source={cpi.source}
+        spec={{ kind: 'line', unit: '%', x: yoyMonths, area: true, zeroLine: true, series: [{ name: 'All items', data: yoyOf('headline'), color: 1 }] }}
+      />
+      <div class="card flex flex-col p-5">
+        <span class="w-fit rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+        <ul class="mt-3 flex-1 space-y-3 text-ink">
+          {allFacts.slice(1, 5).map((f) => <li class="border-l-2 border-line pl-3">{f}</li>)}
+        </ul>
+        <a href="/economy/prices/inflation/" class="mt-4 text-sm font-medium text-ink hover:underline">Explore prices →</a>
+      </div>
+    </section>
+
+    <section class="mt-16">
+      <h2 class="text-2xl font-semibold tracking-tight">Explore by topic</h2>
+      <div class="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {sections.map((s) => (
+          <div class="card p-5">
+            <a href={`/${s.slug}/`} class="text-lg font-semibold hover:underline">{s.name}</a>
+            <p class="mt-1 text-sm text-ink-2">{s.blurb}</p>
+            <ul class="mt-4 flex flex-wrap gap-2">
+              {s.topics.map((t) => (
+                <li>
+                  <a href={topicUrl(s.slug, t.slug)} class="chip">
+                    {t.name}
+                    <span class="text-ink-3">{entriesFor(t.slug, 'dataset').length}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="mt-16">
+      <div class="flex items-baseline justify-between">
+        <h2 class="text-2xl font-semibold tracking-tight">Latest from UBOS</h2>
+        <a href="/sources/" class="text-sm text-ink-2 hover:text-ink">All {datasetCount} tables →</a>
+      </div>
+      <ul class="card mt-4 divide-y divide-line">
+        {latest.map((e) => (
+          <li>
+            <a href={e.url} rel="noopener" class="flex items-center gap-4 px-5 py-3 hover:bg-surface-2">
+              <span class="min-w-0 flex-1">{e.title}</span>
+              <span class="shrink-0 text-sm text-ink-3 tnum">{fmtDate(e.updated)}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 14px;
+    background: var(--surface-2);
+    color: var(--ink);
+    transition: background 0.15s;
+  }
+  .chip:hover {
+    background: var(--grid);
+  }
+</style>

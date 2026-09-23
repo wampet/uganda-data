@@ -1,0 +1,46 @@
+---
+// "Find your district": a plain input + datalist that jumps to the district page.
+import { districts } from '../lib/census';
+
+interface Props { large?: boolean }
+const { large = false } = Astro.props;
+const id = `ds-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<form class:list={['district-search card flex items-center gap-2', large ? 'p-2 pl-4' : 'p-1.5 pl-3']} data-district-search action="/places/districts/">
+  <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" class="shrink-0 text-ink-3" aria-hidden="true"><circle cx="9" cy="9" r="6" /><path d="m17 17-3.5-3.5" stroke-linecap="round" /></svg>
+  <label for={id} class="sr-only">Find your district</label>
+  <input
+    id={id}
+    list={`${id}-list`}
+    placeholder="Find your district or city…"
+    autocomplete="off"
+    class:list={['min-w-0 flex-1 bg-transparent outline-none placeholder:text-ink-3', large ? 'py-2 text-lg' : 'py-1.5']}
+  />
+  <datalist id={`${id}-list`}>
+    {districts.map((d) => <option value={d.name} data-slug={d.slug} />)}
+  </datalist>
+  <button type="submit" class:list={['shrink-0 rounded-lg bg-ink font-medium text-surface hover:opacity-90', large ? 'px-4 py-2' : 'px-3 py-1.5 text-sm']}>Go</button>
+</form>
+
+<script>
+  document.querySelectorAll<HTMLFormElement>('[data-district-search]').forEach((form) => {
+    const input = form.querySelector('input')!;
+    const options = [...form.querySelectorAll<HTMLOptionElement>('option')];
+    const go = () => {
+      const q = input.value.trim().toLowerCase();
+      if (!q) return false;
+      const hit = options.find((o) => o.value.toLowerCase() === q) ?? options.find((o) => o.value.toLowerCase().startsWith(q));
+      if (hit) {
+        location.href = `/places/districts/${hit.dataset.slug}/`;
+        return true;
+      }
+      return false;
+    };
+    input.addEventListener('change', go);
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!go()) input.setCustomValidity('No district matches that name'), input.reportValidity(), input.setCustomValidity('');
+    });
+  });
+</script>

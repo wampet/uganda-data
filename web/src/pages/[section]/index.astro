@@ -1,0 +1,39 @@
+---
+import Base from '../../layouts/Base.astro';
+import { entriesFor, featured, sections, topicUrl, type Section } from '../../lib/data';
+
+export function getStaticPaths() {
+  return sections.map((section) => ({ params: { section: section.slug }, props: { section } }));
+}
+
+const { section } = Astro.props as { section: Section };
+const topics = section.topics.map((t) => ({
+  ...t,
+  datasets: entriesFor(t.slug, 'dataset').length,
+  publications: entriesFor(t.slug, 'publication').length,
+  charts: featured[t.slug]?.length ?? 0,
+}));
+---
+
+<Base title={section.name} description={section.blurb}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <header class="pb-8 pt-10">
+      <h1 class="text-4xl font-semibold tracking-tight">{section.name}</h1>
+      <p class="mt-2 max-w-2xl text-lg text-ink-2">{section.blurb}</p>
+    </header>
+    <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {topics.map((t) => (
+        <li>
+          <a href={topicUrl(section.slug, t.slug)} class="card group flex h-full flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+            <span class="text-lg font-semibold group-hover:underline">{t.name}</span>
+            <span class="mt-auto flex flex-wrap gap-x-4 gap-y-1 pt-6 text-sm text-ink-3">
+              {t.charts > 0 && <span class="font-medium text-ink">{t.charts} interactive {t.charts === 1 ? 'page' : 'pages'}</span>}
+              <span>{t.datasets} data tables</span>
+              {t.publications > 0 && <span>{t.publications} reports</span>}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</Base>

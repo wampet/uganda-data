@@ -1,0 +1,22 @@
+---
+import Base from '../layouts/Base.astro';
+import FileList from '../components/FileList.astro';
+import { catalog, sections } from '../lib/data';
+
+const topicNames: Record<string, string> = Object.fromEntries(
+  sections.flatMap((s) => s.topics.map((t) => [t.slug, t.name])),
+);
+const datasets = catalog.filter((c) => c.kind === 'dataset');
+---
+
+<Base title="All UBOS data files" description="Every data table the Uganda Bureau of Statistics publishes, searchable in one place.">
+  <div class="mx-auto max-w-5xl px-4 sm:px-6">
+    <header class="pb-6 pt-10">
+      <h1 class="text-4xl font-semibold tracking-tight">Every UBOS data table</h1>
+      <p class="mt-2 max-w-2xl text-lg text-ink-2">
+        {datasets.length} spreadsheets from ubos.org, searchable in one place. Try “maize”, “school”, “district” or “2024”.
+      </p>
+    </header>
+    <FileList entries={datasets} label="tables" showTopic topicNames={topicNames} />
+  </div>
+</Base>

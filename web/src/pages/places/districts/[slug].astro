@@ -1,0 +1,221 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import DistrictSearch from '../../../components/DistrictSearch.astro';
+import {
+  districtHighlights, districts, fmtValue, groups, indicatorById, indicators, mapNames, mapSlugs, national, notes,
+  rankOf, siblings, source, subregionByCode, type District,
+} from '../../../lib/census';
+
+export function getStaticPaths() {
+  return districts.map((d) => ({ params: { slug: d.slug }, props: { d } }));
+}
+
+const { d } = Astro.props as { d: District };
+const sr = subregionByCode.get(d.subregion_code)!;
+const isCity = /city/i.test(d.name) || d.name === 'Kampala';
+const kind = isCity ? 'city' : 'district';
+const hl = districtHighlights(d);
+const near = siblings(d);
+
+const pop = indicatorById.get('population')!;
+const stats = [
+  { label: 'People', value: fmtValue(pop, d.values.population), sub: `${rankOf('population', d.code).rank} of ${districts.length} by size` },
+  { label: 'Area', value: `${Math.round(d.area_km2).toLocaleString('en-UG')} km²`, sub: '' },
+  { label: 'People per km²', value: Math.round(d.values.density ?? 0).toLocaleString('en-UG'), sub: `Uganda: ${Math.round(national.density ?? 0)}` },
+  { label: 'Household size', value: `${d.values.hh_size?.toFixed(1)}`, sub: `Uganda: ${national.hh_size?.toFixed(1)}` },
+  { label: 'Children under 18', value: fmtValue(indicatorById.get('children')!, d.values.children), sub: `Uganda: ${fmtValue(indicatorById.get('children')!, national.children)}` },
+];
+
+// Share-based indicators, shown as strips (0–100%).
+const strips = groups
+  .map((g) => ({
+    group: g,
+    rows: indicators
+      .filter((i) => i.group === g && i.unit === '%' && i.id !== 'children')
+      .map((i) => ({
+        i,
+        v: d.values[i.id],
+        s: sr.values[i.id],
+        n: national[i.id],
+        ...rankOf(i.id, d.code),
+      }))
+      .filter((r) => r.v != null),
+  }))
+  .filter((g) => g.rows.length);
+
+// Scale each strip to 100% unless all three values are small, then zoom in.
+const scaleMax = (vals: (number | null)[]) => {
+  const m = Math.max(...vals.map((v) => v ?? 0));
+  return m <= 20 ? 25 : m <= 45 ? 50 : 100;
+};
+const pct = (v: number | null, max: number) => `${Math.min(100, ((v ?? 0) / max) * 100)}%`;
+const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
+const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+---
+
+<Base
+  title={`${d.name} ${isCity ? '' : 'District'} statistics`.replace('  ', ' ')}
+  description={`${d.name}: population ${fmtValue(pop, d.values.population)} (Census 2024). Schooling, jobs, electricity, water and health compared with ${sr.name} and Uganda.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/places/">Places</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/places/districts/">Districts</a><span class="px-1.5" aria-hidden="true">/</span><span>{sr.name}</span>
+    </nav>
+
+    <header class="grid gap-6 pb-8 pt-4 lg:grid-cols-[1.5fr_1fr] lg:items-start">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Census 2024 · {kind} in {sr.name} sub-region</p>
+        <h1 class="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">{d.name}</h1>
+        <dl class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          {stats.map((s) => (
+            <div class="card p-3.5">
+              <dt class="text-xs text-ink-3">{s.label}</dt>
+              <dd class="mt-0.5 text-xl font-semibold tracking-tight">{s.value}</dd>
+              {s.sub && <dd class="text-xs text-ink-3">{s.sub}</dd>}
+            </div>
+          ))}
+        </dl>
+      </div>
+      <Chart
+        id="locator"
+        title={`Where ${d.name} is`}
+        height={250}
+        table={false}
+        spec={{ kind: 'map', series: [], map: { geo: '/geo/districts.json', values: {}, names: mapNames, slugs: mapSlugs, href: '/places/districts/', breaks: [], highlight: d.code, locator: true } }}
+      />
+    </header>
+
+    {(hl.strengths.length > 0 || hl.challenges.length > 0) && (
+      <section class="mb-10 grid gap-4 md:grid-cols-2">
+        <div class="card p-5">
+          <h2 class="font-semibold">Where {d.name} does better than Uganda</h2>
+          {hl.strengths.length ? (
+            <ul class="mt-3 space-y-2">{hl.strengths.map((t) => <li class="flex gap-2"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-down-good" aria-hidden="true" /><span>{up(t)}</span></li>)}</ul>
+          ) : <p class="mt-2 text-ink-2">No indicator is clearly better than the national figure.</p>}
+        </div>
+        <div class="card p-5">
+          <h2 class="font-semibold">Where {d.name} lags behind</h2>
+          {hl.challenges.length ? (
+            <ul class="mt-3 space-y-2">{hl.challenges.map((t) => <li class="flex gap-2"><span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-up-bad" aria-hidden="true" /><span>{up(t)}</span></li>)}</ul>
+          ) : <p class="mt-2 text-ink-2">No indicator is clearly worse than the national figure.</p>}
+        </div>
+      </section>
+    )}
+
+    <section>
+      <div class="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 class="text-2xl font-semibold tracking-tight">{d.name} compared</h2>
+        <ul class="legend flex flex-wrap items-center gap-4 text-sm text-ink-2" aria-label="Legend">
+          <li class="flex items-center gap-1.5"><span class="dot dot-d" aria-hidden="true" />{d.name}</li>
+          <li class="flex items-center gap-1.5"><span class="dot dot-s" aria-hidden="true" />{sr.name}</li>
+          <li class="flex items-center gap-1.5"><span class="tick" aria-hidden="true" />Uganda</li>
+        </ul>
+      </div>
+
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        {strips.map((g) => (
+          <div class="card p-5">
+            <h3 class="text-sm font-medium uppercase tracking-wide text-ink-3">{g.group}</h3>
+            <ul class="mt-2 divide-y divide-line">
+              {g.rows.map((r) => {
+                const max = scaleMax([r.v, r.s, r.n]);
+                return (
+                  <li class="py-3">
+                    <div class="flex items-baseline justify-between gap-3">
+                      <a class="text-ink hover:underline" href={`/places/districts/?show=${r.i.id}`}>{r.i.label}</a>
+                      <span class="shrink-0 text-lg font-semibold">{fmtValue(r.i, r.v)}</span>
+                    </div>
+                    <div class="strip mt-2" role="img" aria-label={`${d.name} ${fmtValue(r.i, r.v)}, ${sr.name} ${fmtValue(r.i, r.s)}, Uganda ${fmtValue(r.i, r.n)}`}>
+                      <span class="tick" style={`left:${pct(r.n, max)}`} />
+                      <span class="dot dot-s" style={`left:${pct(r.s, max)}`} />
+                      <span class="dot dot-d" style={`left:${pct(r.v, max)}`} />
+                    </div>
+                    <div class="mt-1 flex justify-between text-xs text-ink-3 tnum">
+                      <span>0%</span>
+                      <span>{ordinal(r.rank)} highest of {r.of} · {sr.name} {fmtValue(r.i, r.s)} · Uganda {fmtValue(r.i, r.n)}</span>
+                      <span>{max}%</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="mt-10 grid gap-4 lg:grid-cols-[1fr_1fr]">
+      <div class="card p-5">
+        <h2 class="text-lg font-semibold">Other districts in {sr.name}</h2>
+        <ul class="mt-3 flex flex-wrap gap-2">
+          {near.map((x) => (
+            <li><a class="chip" href={`/places/districts/${x.slug}/`}>{x.name} <span class="text-ink-3">{Math.round((x.values.population ?? 0) / 1000).toLocaleString()}k</span></a></li>
+          ))}
+        </ul>
+        <div class="mt-5"><DistrictSearch /></div>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <p class="mt-2">
+          From the <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={source.url} rel="noopener">{source.title}</a>.
+          Shares are worked out from UBOS’s counts for {d.name}. The {sr.name} and Uganda figures come from summed counts, not averages.
+          “Highest of 146” ranks show where {d.name} sits among all districts and cities, from highest value down. For some
+          indicators, a high rank is good news; for others it isn’t.
+        </p>
+        {notes.map((n) => <p class="mt-2 text-sm text-ink-3">Note: {n}</p>)}
+      </div>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .strip {
+    position: relative;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--surface-2);
+  }
+  .dot {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 2px var(--surface);
+  }
+  .legend .dot {
+    position: static;
+    transform: none;
+    display: inline-block;
+  }
+  .dot-d { background: var(--series-1); z-index: 2; }
+  .dot-s { background: var(--muted-series); width: 10px; height: 10px; }
+  .tick {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--ink);
+    transform: translateX(-50%);
+  }
+  .legend .tick {
+    position: static;
+    display: inline-block;
+    height: 12px;
+    transform: none;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 14px;
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .chip:hover { background: var(--grid); }
+</style>

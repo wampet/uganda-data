@@ -1,0 +1,270 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import { catalog, cpi, fmtDate, fmtPct, monthLabel } from '../../../lib/data';
+import {
+  centres, core, divisions, facts, fallers, headline, headlineIndex, headlinePrev, last, latestMonth,
+  peak, risers, s, yoyMonths, yoyOf,
+} from '../../../lib/cpi';
+
+const source = cpi.source;
+const allFacts = facts();
+const delta = headline - headlinePrev;
+
+const pool = Object.fromEntries(divisions.map((d) => [d.name, yoyOf(d.id)]));
+
+const tiles = [
+  { label: 'Core inflation', value: core, note: 'Excludes food crops and fuel, which swing a lot' },
+  { label: 'Food crops', value: last(s('food-crops').yoy), note: 'Matooke, beans, maize, vegetables…' },
+  { label: 'Energy, fuel & utilities', value: last(s('energy').yoy), note: 'Electricity, fuel, charcoal, water' },
+  { label: `Peak since 2018`, value: peak.value, note: monthLabel(peak.month, true) },
+];
+
+const cpiFiles = catalog.filter((c) => c.family === 'cpi').slice(0, 6);
+---
+
+<Base
+  title="Inflation in Uganda"
+  description={`Uganda's inflation rate is ${fmtPct(headline)} (${monthLabel(latestMonth, true)}). See how prices have changed since 2017, by category, town and item.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/economy/">Economy</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/economy/prices/">Prices & Inflation</a>
+    </nav>
+
+    <!-- Hero: the one number, said in plain words -->
+    <section class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Inflation · updated {fmtDate(source.updated)}</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Prices in Uganda are rising <span class="whitespace-nowrap">{fmtPct(headline)} a year</span>
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">
+          {`That is the annual inflation rate for ${monthLabel(latestMonth, true)}, ${
+            delta === 0 ? 'the same as' : delta > 0 ? 'up from' : 'down from'
+          } ${fmtPct(headlinePrev)} the month before. Bank of Uganda aims to keep core inflation around 5%.`}
+        </p>
+
+        <!-- Shilling calculator: the number in the reader's own money -->
+        <div class="calc card mt-6 p-4 sm:p-5" id="calc">
+          <script type="application/json" set:html={JSON.stringify(headlineIndex)} />
+          <label class="text-sm text-ink-2" for="calc-amount">What did it cost…</label>
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-base">
+            <span class="text-ink-2">UGX</span>
+            <input id="calc-amount" inputmode="numeric" value="10,000" class="w-32 rounded-lg border border-line bg-page px-3 py-1.5 font-semibold tnum" aria-label="Amount in shillings" />
+            <select id="calc-when" class="rounded-lg border border-line bg-page px-2 py-1.5" aria-label="When">
+              <option value="12">a year ago</option>
+              <option value="36">3 years ago</option>
+              <option value="60">5 years ago</option>
+              <option value={cpi.months.length - 1}>in {monthLabel(cpi.months[0], true)}</option>
+            </select>
+          </div>
+          <p class="mt-3 text-ink-2">
+            …costs <strong id="calc-out" class="text-2xl font-semibold text-ink">UGX 10,414</strong> today.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-3xl font-semibold tracking-tight">{fmtPct(t.value)}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Did you know: computed facts -->
+    <section aria-label="Key facts" class="facts card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[1]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={JSON.stringify(allFacts)} />
+    </section>
+
+    <!-- Trend + categories, linked -->
+    <section class="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <Chart
+        id="trend"
+        title="Annual inflation, 2018 to today"
+        subtitle="% change in prices compared with the same month a year earlier"
+        ranges
+        height={340}
+        source={source}
+        hint="Click a category to compare"
+        spec={{
+          kind: 'line',
+          unit: '%',
+          x: yoyMonths,
+          zeroLine: true,
+          series: [
+            { name: 'All items', data: yoyOf('headline'), color: 1 },
+            { name: 'Core', data: yoyOf('core'), color: 'muted' },
+          ],
+          pool,
+        }}
+      />
+      <Chart
+        id="categories"
+        title="Which costs are rising fastest?"
+        subtitle={`Annual % change by spending category, ${monthLabel(latestMonth)}`}
+        height={400}
+        source={source}
+        spec={{
+          kind: 'bar',
+          unit: '%',
+          categories: divisions.map((d) => d.name),
+          series: [{ name: 'Annual change', data: divisions.map((d) => d.yoy) }],
+          selectTarget: 'trend',
+          labelWidth: 150,
+        }}
+      />
+    </section>
+
+    <!-- Movers -->
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">What got dearer, what got cheaper</h2>
+      <p class="mt-1 text-ink-2">Individual items: {monthLabel(latestMonth, true)} prices compared with a year earlier.</p>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="risers"
+          title="Biggest price rises"
+          subtitle="Annual % change, top 10 items"
+          height={330}
+          source={source}
+          spec={{ kind: 'bar', unit: '%', digits: 0, categories: risers.map((r) => r.name), series: [{ name: 'Annual change', data: risers.map((r) => r.yoy) }] }}
+        />
+        <Chart
+          id="fallers"
+          title="Biggest price falls"
+          subtitle="Annual % change, top 10 items"
+          height={330}
+          source={source}
+          spec={{ kind: 'bar', unit: '%', digits: 0, categories: fallers.map((r) => r.name), series: [{ name: 'Annual change', data: fallers.map((r) => r.yoy) }] }}
+        />
+      </div>
+    </section>
+
+    <!-- Towns + item explorer -->
+    <section class="mt-12 grid gap-4 lg:grid-cols-[1fr_1.6fr]">
+      <div>
+        <h2 class="text-2xl font-semibold tracking-tight">Where you live matters</h2>
+        <p class="mb-4 mt-1 text-ink-2">UBOS collects prices in ten towns. Kampala is split by income level because households there buy different things.</p>
+        <Chart
+          id="towns"
+          title="Inflation by town"
+          subtitle={`Annual % change, ${monthLabel(latestMonth)}`}
+          height={360}
+          source={source}
+          spec={{ kind: 'bar', unit: '%', categories: centres.map((c) => c.name), series: [{ name: 'Annual change', data: centres.map((c) => c.yoy) }], labelWidth: 150 }}
+        />
+      </div>
+      <div>
+        <h2 class="text-2xl font-semibold tracking-tight">Look up any item</h2>
+        <p class="mb-4 mt-1 text-ink-2">Sugar, matooke, school fees, airtime… pick one of the ~340 items UBOS tracks and compare it with overall inflation.</p>
+        <div class="card mb-3 flex flex-wrap items-center gap-2 p-3">
+          <label for="item-search" class="text-sm text-ink-2">Item</label>
+          <input id="item-search" list="item-list" placeholder="Start typing, e.g. sugar" autocomplete="off" class="min-w-0 flex-1 rounded-lg border border-line bg-page px-3 py-1.5" />
+          <datalist id="item-list"></datalist>
+          <span id="item-status" class="text-xs text-ink-3" aria-live="polite"></span>
+        </div>
+        <Chart
+          id="item-trend"
+          title="An item's price vs all prices"
+          subtitle="Annual % change"
+          ranges
+          range="60"
+          height={300}
+          source={source}
+          hint="Pick an item above"
+          spec={{ kind: 'line', unit: '%', x: yoyMonths, zeroLine: true, series: [{ name: 'All items', data: yoyOf('headline'), color: 1 }], pool: {} }}
+        />
+      </div>
+    </section>
+
+    <!-- Explainer + sources -->
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <div class="card p-5">
+        <h2 class="text-lg font-semibold">What is inflation, in plain words?</h2>
+        <div class="mt-2 space-y-2 text-ink-2">
+          <p>Every month UBOS checks the prices of a fixed “basket” of things Ugandan households buy (food, rent, transport, school fees, airtime and more) in ten towns.</p>
+          <p>Inflation is how much more that same basket costs than it did a year before. At {fmtPct(headline)}, a basket that cost UGX 100,000 last year costs about UGX {(100_000 * (1 + headline / 100)).toLocaleString('en-UG', { maximumFractionDigits: 0 })} now.</p>
+          <p>“Core” inflation leaves out food crops and fuel, whose prices jump with harvests and world oil prices, so it shows the steadier trend.</p>
+        </div>
+      </div>
+      <div class="card p-5">
+        <h2 class="text-lg font-semibold">Where this comes from</h2>
+        <p class="mt-2 text-ink-2">Uganda Bureau of Statistics, Consumer Price Index (base {cpi.base}). We read UBOS’s Excel tables, check our numbers match UBOS’s published rates, and chart them.</p>
+        <ul class="mt-3 space-y-1.5 text-sm">
+          {cpiFiles.map((f) => (
+            <li class="flex items-baseline justify-between gap-3">
+              <a class="text-ink underline decoration-dotted underline-offset-2" href={f.url} rel="noopener">{f.title}</a>
+              <span class="shrink-0 text-ink-3 uppercase">{f.format}</span>
+            </li>
+          ))}
+        </ul>
+        <a class="mt-3 inline-block text-sm text-ink-2 hover:text-ink" href="/economy/prices/">All price files from UBOS →</a>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  // Shilling calculator
+  const calc = document.getElementById('calc')!;
+  const { months, index } = JSON.parse(calc.querySelector('script')!.textContent!);
+  const amountEl = document.getElementById('calc-amount') as HTMLInputElement;
+  const whenEl = document.getElementById('calc-when') as HTMLSelectElement;
+  const outEl = document.getElementById('calc-out')!;
+  const update = () => {
+    const amount = Number(amountEl.value.replace(/[^\d.]/g, '')) || 0;
+    const back = Math.min(Number(whenEl.value), months.length - 1);
+    const then = index[index.length - 1 - back];
+    const now = index[index.length - 1];
+    outEl.textContent = then ? `UGX ${Math.round((amount * now) / then).toLocaleString('en-UG')}` : '–';
+  };
+  amountEl.addEventListener('input', update);
+  amountEl.addEventListener('blur', () => {
+    const n = Number(amountEl.value.replace(/[^\d.]/g, ''));
+    if (n) amountEl.value = n.toLocaleString('en-UG');
+  });
+  whenEl.addEventListener('change', update);
+  update();
+
+  // Facts carousel
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 1;
+  const factEl = document.getElementById('fact')!;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    factEl.textContent = facts[i];
+  });
+
+  // Item explorer: fetch the item list only when the reader reaches for it.
+  const input = document.getElementById('item-search') as HTMLInputElement;
+  const list = document.getElementById('item-list')!;
+  const status = document.getElementById('item-status')!;
+  const chart = document.getElementById('item-trend')!;
+  let items: { id: string; name: string; yoy: (number | null)[] }[] | null = null;
+  const load = async () => {
+    if (items) return items;
+    status.textContent = 'Loading items…';
+    const res = await fetch('/data/cpi-items.json');
+    items = (await res.json()).items as { id: string; name: string; yoy: (number | null)[] }[];
+    for (const it of items) {
+      const opt = document.createElement('option');
+      opt.value = it.name;
+      list.appendChild(opt);
+    }
+    status.textContent = `${items.length} items`;
+    return items;
+  };
+  input.addEventListener('focus', load, { once: true });
+  input.addEventListener('change', async () => {
+    const all = await load();
+    const hit = all.find((it) => it.name.toLowerCase() === input.value.trim().toLowerCase());
+    if (hit) chart.dispatchEvent(new CustomEvent('chart:select', { detail: { name: hit.name, data: hit.yoy } }));
+  });
+</script>

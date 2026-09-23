@@ -1,0 +1,82 @@
+---
+// A filterable list of UBOS source files. Rendered as plain HTML; the search box
+// just hides non-matching rows, so it works instantly with no data fetch.
+import type { CatalogEntry } from '../lib/data';
+import { fmtDate } from '../lib/data';
+
+interface Props {
+  entries: CatalogEntry[];
+  label: string;
+  showTopic?: boolean;
+  topicNames?: Record<string, string>;
+}
+const { entries, label, showTopic = false, topicNames = {} } = Astro.props;
+---
+
+<div class="filelist card" data-filelist>
+  <div class="flex flex-wrap items-center gap-3 border-b border-line p-3">
+    <input
+      type="search"
+      placeholder={`Search ${entries.length.toLocaleString()} ${label}…`}
+      aria-label={`Search ${label}`}
+      class="min-w-0 flex-1 rounded-lg border border-line bg-page px-3 py-1.5"
+      data-filter
+    />
+    <span class="text-xs text-ink-3" data-count aria-live="polite">{entries.length.toLocaleString()} {label}</span>
+  </div>
+  <ul class="max-h-[560px] divide-y divide-line overflow-auto">
+    {entries.map((e) => (
+      <li data-text={`${e.title} ${e.format} ${topicNames[e.topic] ?? ''}`.toLowerCase()}>
+        <a href={e.url} rel="noopener" class="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-2">
+          <span class={`fmt fmt-${e.format}`}>{e.format}</span>
+          <span class="min-w-0 flex-1 text-sm text-ink">{e.title}</span>
+          {showTopic && topicNames[e.topic] && <span class="hidden shrink-0 text-xs text-ink-3 md:inline">{topicNames[e.topic]}</span>}
+          <span class="w-24 shrink-0 text-right text-xs text-ink-3 tnum">{fmtDate(e.updated)}</span>
+        </a>
+      </li>
+    ))}
+  </ul>
+</div>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-filelist]').forEach((root) => {
+    const input = root.querySelector<HTMLInputElement>('[data-filter]')!;
+    const count = root.querySelector('[data-count]')!;
+    const rows = [...root.querySelectorAll<HTMLElement>('li[data-text]')];
+    const label = count.textContent!.replace(/^[\d,]+\s*/, '');
+    input.addEventListener('input', () => {
+      const terms = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+      let n = 0;
+      for (const r of rows) {
+        const hit = terms.every((t) => r.dataset.text!.includes(t));
+        r.hidden = !hit;
+        if (hit) n++;
+      }
+      count.textContent = `${n.toLocaleString()} ${label}`;
+    });
+  });
+</script>
+
+<style>
+  .fmt {
+    width: 42px;
+    flex: none;
+    border-radius: 5px;
+    padding: 1px 0;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+  .fmt-xlsx,
+  .fmt-xls,
+  .fmt-csv {
+    color: var(--down-good);
+  }
+  .fmt-pdf {
+    color: var(--up-bad);
+  }
+</style>
