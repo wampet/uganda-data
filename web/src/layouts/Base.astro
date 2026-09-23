@@ -21,13 +21,9 @@ const path = Astro.url.pathname;
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- Apply saved theme before paint to avoid a flash. -->
-    <script is:inline>
-      try {
-        const t = localStorage.getItem('theme');
-        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-      } catch {}
-    </script>
+    <!-- Apply saved theme before paint to avoid a flash. A same-origin file (not an
+         inline script) so the Content-Security-Policy allows it without a hash. -->
+    <script is:inline src="/theme-init.js"></script>
   </head>
   <body class="font-sans">
     <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 card px-3 py-2">Skip to content</a>
