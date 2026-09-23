@@ -11,6 +11,7 @@ import * as D from './census';
 import * as V from './poverty';
 import * as R from './road';
 import * as E from './education';
+import * as J from './jobs';
 
 export interface SharedChart {
   slug: string;
@@ -268,6 +269,25 @@ export const sharedCharts: SharedChart[] = [
     page: { href: '/people/education/learning-in-uganda/', label: 'More on education' },
     topic: 'People',
   },
+  (() => {
+    const rows = [
+      ...J.earningsGroup('Nature of employment'),
+      ...J.earningsGroup('Type of Institution').map((e) => ({ ...e, name: `${e.name} sector` })),
+      ...J.earningsGroup('Residence'),
+    ].sort((a, b) => b.value - a.value);
+    const nat = J.earn('National');
+    return {
+      slug: 'uganda-monthly-earnings',
+      title: 'What does a job pay in Uganda?',
+      subtitle: 'Median monthly earnings in paid jobs, UGX, 2021',
+      description: nat ? `The typical worker in a paid job earned UGX ${Math.round(nat.total).toLocaleString('en-UG')} a month in 2021.` : 'Median monthly earnings in paid jobs, 2021.',
+      spec: { kind: 'bar' as const, unit: '', digits: 0, categories: rows.map((r) => r.name), series: [{ name: 'UGX per month', data: rows.map((r) => r.value) }], labelWidth: 150 },
+      height: 360,
+      source: src(J.sources.earnings),
+      page: { href: '/people/jobs/work-and-earnings/', label: 'More on jobs and earnings' },
+      topic: 'People',
+    };
+  })(),
   districtMap('grid', 'grid-electricity-by-district', 'Who has power from the grid?', 'Share of households using grid electricity for lighting.'),
   districtMap('out_of_school', 'children-out-of-school-by-district', 'Children out of school, by district', 'Share of children aged 6–12 not in school.'),
   districtMap('neet', 'youth-not-in-work-or-school-by-district', 'Young people not in work, school or training', 'Share of 18–30 year olds not in employment, education or training.'),

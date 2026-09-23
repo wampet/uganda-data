@@ -489,6 +489,85 @@ def build_education(records: list[dict]) -> None:
     })
 
 
+def build_jobs(records: list[dict]) -> None:
+    def read(title_start):
+        r = _dataset(records, title_start)
+        return r, tables.read_grouped(get_file(r["url"]))
+
+    s_key, key = read("Key Labour Market Indicators of Working Population (14-64 years) by sex")
+    s_youth, youth = read("Selected labour market indicators of the Youth Population (18-30 years)")
+    s_epr, epr = read("Employment-to-Population Ratio (EPR) by selected background")
+    s_ind, ind = read("Distribution of the employed Population by Industry")
+    s_status, status = read("Percentage distribution of the population in employment by Status in Employment")
+    s_earn, earn = read("Median monthly earnings for persons in paid employment on the main job by type")
+
+    def surveys(t):
+        """Survey labels in column order: 'UNHS 2016/17 · Male' -> 'UNHS 2016/17'."""
+        out = []
+        for c in t["columns"]:
+            s = c.split(" · ")[0]
+            if s not in out:
+                out.append(s)
+        return out
+
+    def by_survey(t, label, sex, group=None):
+        vals = tables.pick(t, label, group)
+        return [vals[t["columns"].index(f"{s} · {sex}")] for s in surveys(t)]
+
+    svy = surveys(youth)
+    if surveys(key) != svy or surveys(epr) != svy:
+        raise ValueError("jobs: labour tables cover different surveys")
+
+    # Industry shares must add to ~100% in every survey column.
+    ind_rows = [r for r in ind["rows"] if r["label"].lower() != "total"]
+    for j, c in enumerate(ind["columns"]):
+        s = sum(r["values"][j] or 0 for r in ind_rows)
+        if abs(s - 100) > 1.5:
+            raise ValueError(f"jobs: industry shares add to {s:.1f}% in {c}")
+
+    earn_col = next(c for c in earn["columns"] if c.startswith("In-cash & In-kind") and c.endswith("Total"))
+    ec = earn["columns"].index(earn_col)
+    em = earn["columns"].index(earn_col.replace("Total", "Male"))
+    ef = earn["columns"].index(earn_col.replace("Total", "Female"))
+    earnings = [
+        {"group": r["group"], "name": r["label"], "total": r["values"][ec], "male": r["values"][em], "female": r["values"][ef]}
+        for r in earn["rows"]
+    ]
+
+    status_cols = [c for c in status["columns"] if c.split(" · ")[-1].lower() != "total"]
+    _write("jobs.json", {
+        "sources": {k: _src(v) for k, v in {
+            "key": s_key, "youth": s_youth, "epr": s_epr, "industry": s_ind, "status": s_status, "earnings": s_earn}.items()},
+        "surveys": svy,
+        "working_age_millions": by_survey(key, "Working Age Population (million)", "Total"),
+        "working_millions": by_survey(key, "Working Population (million)", "Total"),
+        "subsistence_only_pct": {sex: by_survey(key, "Percentage in subsistence agriculture only", sex) for sex in ("Male", "Female", "Total")},
+        "youth": {
+            "unemployment": {sex: by_survey(youth, "Unemployment Rate", sex) for sex in ("Male", "Female", "Total")},
+            "neet": {sex: by_survey(youth, "NEET", sex, "Activity status") for sex in ("Male", "Female", "Total")},
+            # 2016/17 and 2019/20 list "subsistence agriculture only" separately; 2021 does not.
+            "subsistence_only": by_survey(youth, "Subsistence agriculture only", "Total", "Activity status"),
+        },
+        "epr_by_age": [
+            {"age": r["label"], "values": by_survey(epr, r["label"], "Total", "Age groups")}
+            for r in tables.group_rows(epr, "Age groups") if r["label"].lower() != "total"
+        ],
+        "industry": {
+            "surveys": surveys(ind),
+            "rows": [{"name": r["label"], "values": [r["values"][ind["columns"].index(f"{s} · National")] for s in surveys(ind)]} for r in ind_rows],
+        },
+        "status_by_education": {
+            "columns": status_cols,
+            "rows": [{"name": r["label"], "values": r["values"][: len(status_cols)]} for r in tables.group_rows(status, "Education level attained")],
+        },
+        "earnings_2021_ugx_000": earnings,
+        "notes": [
+            "Earnings are medians for people in paid work, in thousands of shillings a month (cash and in-kind), from the 2021 National Labour Force Survey.",
+            "Surveys differ (UNHS 2016/17 and 2019/20, NLFS 2021), so small changes between them should be read with care.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -500,3 +579,4 @@ def build(refresh: bool = False) -> None:
     build_poverty(records)
     build_road_safety(records)
     build_education(records)
+    build_jobs(records)

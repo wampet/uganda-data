@@ -99,7 +99,14 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
     },
     { ...districtExplorer, href: '/places/districts/?show=out_of_school', title: 'Children out of school, by district' },
   ],
-  jobs: [{ ...districtExplorer, href: '/places/districts/?show=neet', title: 'Youth not in work or school, by district' }],
+  jobs: [
+    {
+      href: '/people/jobs/work-and-earnings/',
+      title: 'Who has a job, and what does it pay?',
+      blurb: 'Youth not in work or school, typical monthly pay, formal vs informal jobs, and where Ugandans work.',
+    },
+    { ...districtExplorer, href: '/places/districts/?show=neet', title: 'Youth not in work or school, by district' },
+  ],
   crime: [
     {
       href: '/people/crime/road-safety/',

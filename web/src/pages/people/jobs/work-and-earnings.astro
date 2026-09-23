@@ -1,0 +1,161 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  censusNeet, censusUnemployment, earn, earningsGroup, employeesByEducation, facts, industry, latestSurvey, notes,
+  sources, surveys, workingMillions, youth, youthSubsistence,
+} from '../../../lib/jobs';
+
+const allFacts = facts();
+const nat = earn('National');
+const L = <T,>(a: T[]) => a[a.length - 1];
+const subsistencePrev = youthSubsistence[youthSubsistence.length - 2];
+
+const payGroups = [
+  ...earningsGroup('Nature of employment'),
+  ...earningsGroup('Type of Institution').map((e) => ({ ...e, name: `${e.name} sector` })),
+  ...earningsGroup('Residence'),
+].sort((a, b) => b.value - a.value);
+const bySector = earningsGroup('Sector of employment').sort((a, b) => b.value - a.value);
+const topIndustries = [...industry.rows].sort((a, b) => L(b.values) - L(a.values)).slice(0, 6);
+
+const tiles = [
+  { label: 'Youth 18–30 not in work, school or training', value: `${Math.round(censusNeet ?? 0)}%`, note: 'Census 2024' },
+  { label: 'Unemployment, age 14–64', value: `${(censusUnemployment ?? 0).toFixed(1)}%`, note: 'Census 2024' },
+  { label: 'Typical monthly pay', value: nat ? `UGX ${Math.round(nat.total / 1000)}k` : '–', note: 'paid jobs, 2021 (median)' },
+  { label: 'People working', value: `${L(workingMillions)} million`, note: latestSurvey },
+];
+---
+
+<Base
+  title="Jobs and earnings in Uganda"
+  description={`${Math.round(censusNeet ?? 0)}% of young Ugandans (18–30) are not in work, school or training. What people earn, where they work, and youth unemployment.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/people/">People & Society</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/people/jobs/">Jobs & Earnings</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Jobs · Census 2024 and UBOS labour surveys</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Half of young Ugandans are not in work, school or training
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[0]} <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/places/districts/?show=neet">See every district →</a></p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[1]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section>
+      <h2 class="text-2xl font-semibold tracking-tight">What does work pay?</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">Typical (median) monthly earnings of people in paid jobs, cash plus in-kind, 2021.</p>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="pay"
+          share="uganda-monthly-earnings"
+          title="Monthly pay by type of job"
+          subtitle="Median, UGX per month, 2021"
+          height={300}
+          source={sources.earnings}
+          spec={{ kind: 'bar', unit: '', digits: 0, categories: payGroups.map((e) => e.name), series: [{ name: 'UGX per month', data: payGroups.map((e) => e.value) }], labelWidth: 140 }}
+        />
+        <Chart
+          id="pay-sector"
+          title="Monthly pay by sector"
+          subtitle="Median, UGX per month, 2021"
+          height={300}
+          source={sources.earnings}
+          spec={{ kind: 'bar', unit: '', digits: 0, categories: bySector.map((e) => e.name), series: [{ name: 'UGX per month', data: bySector.map((e) => e.value) }], labelWidth: 170 }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="education-pays"
+        title="Does education lead to a wage job?"
+        subtitle="% of working people who are employees, by education (2021)"
+        height={340}
+        source={sources.status}
+        spec={{ kind: 'bar', unit: '%', digits: 0, categories: employeesByEducation.map((e) => e.name), series: [{ name: '% employees', data: employeesByEducation.map((e) => e.value) }], labelWidth: 190 }}
+      />
+      <Chart
+        id="industry"
+        title="Where people work"
+        subtitle="% of employed people, biggest sectors, by survey"
+        height={340}
+        source={sources.industry}
+        spec={{ kind: 'line', unit: '%', digits: 1, x: industry.surveys, yMin: 0, series: topIndustries.map((r, i) => ({ name: r.name.replace(', forestry and fishing', ''), data: r.values, color: i < 3 ? i + 1 : 'muted', points: true })) }}
+      />
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="youth-unemployment"
+        title="Youth unemployment (18–30)"
+        subtitle="% of young people in the labour force without a job, by survey"
+        height={300}
+        source={sources.youth}
+        spec={{ kind: 'line', unit: '%', digits: 1, x: surveys, yMin: 0, series: [
+          { name: 'Young women', data: youth.unemployment.Female, color: 2, points: true },
+          { name: 'Young men', data: youth.unemployment.Male, color: 1, points: true },
+        ] }}
+      />
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Why the youth figures jump in 2021</h2>
+        <p class="mt-2">
+          In the {surveys.slice(0, -1).join(' and ')} surveys, UBOS listed young people who only farm for their own family as a
+          separate group ({subsistencePrev}% of 18–30 year olds in {surveys[surveys.length - 2]}). The {latestSurvey} survey has no
+          such group, so they appear to be counted as not in work instead. That is the main reason the survey’s share of youth
+          not in work, school or training rises from {L(youth.neet.Total.slice(0, -1))}% to {L(youth.neet.Total)}%, and why the
+          {' '}{latestSurvey} figures should not be compared directly with earlier years. The census figure at the top of this page is
+          the more complete picture.
+        </p>
+      </div>
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+          <li>“Employees” work for someone else for pay. Most other workers run their own small business or farm.</li>
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 1;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>

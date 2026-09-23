@@ -64,6 +64,19 @@ def read_grouped(path, sheet: str | None = None) -> dict:
     header = rows[h]
     # Column labels: "2021**" -> "2021" (footnote markers), 2019 -> "2019".
     cols = [(j, _label(c).rstrip("*").strip()) for j, c in enumerate(header) if j > 0 and c is not None and _label(c)]
+
+    # Two-level headers: a survey/year row above "Male | Female | Total" blocks.
+    # Carry each top label rightwards and prefix it: "2019/20 · Female".
+    # The top row can sit up to three rows higher (a wrapped row label may come between).
+    labelled = lambda r: sum(1 for j, _ in cols if j < len(r) and _label(r[j]))
+    above = next((rows[k] for k in range(h - 1, max(-1, h - 4), -1) if labelled(rows[k]) >= 2), [])
+    if above:
+        top, spans = "", {}
+        for j in range(1, max(j for j, _ in cols) + 1):
+            if j < len(above) and _label(above[j]):
+                top = _label(above[j]).rstrip("*").strip()
+            spans[j] = top
+        cols = [(j, f"{spans[j]} · {c}" if spans.get(j) else c) for j, c in cols]
     group = None
     out = []
     for r in rows[h + 1 :]:
