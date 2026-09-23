@@ -83,6 +83,7 @@ const m = (v: number) => Math.round(v);
       <div class="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Chart
           id="totals"
+          share="uganda-exports-and-imports"
           title="Exports and imports each year"
           subtitle="US$ million, calendar years"
           height={340}
@@ -109,6 +110,7 @@ const m = (v: number) => Math.round(v);
       <div class="mt-4 grid gap-4 lg:grid-cols-[1fr_1.3fr]">
         <Chart
           id="products"
+          share="uganda-top-exports"
           title={`Top exports, ${year}`}
           subtitle="US$ million"
           height={430}

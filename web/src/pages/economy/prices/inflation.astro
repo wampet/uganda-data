@@ -89,6 +89,7 @@ const cpiFiles = catalog.filter((c) => c.family === 'cpi').slice(0, 6);
     <section class="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
       <Chart
         id="trend"
+        share="uganda-inflation-rate"
         title="Annual inflation, 2018 to today"
         subtitle="% change in prices compared with the same month a year earlier"
         ranges
@@ -109,6 +110,7 @@ const cpiFiles = catalog.filter((c) => c.family === 'cpi').slice(0, 6);
       />
       <Chart
         id="categories"
+        share="inflation-by-category"
         title="Which costs are rising fastest?"
         subtitle={`Annual % change by spending category, ${monthLabel(latestMonth)}`}
         height={400}
@@ -155,6 +157,7 @@ const cpiFiles = catalog.filter((c) => c.family === 'cpi').slice(0, 6);
         <p class="mb-4 mt-1 text-ink-2">UBOS collects prices in ten towns. Kampala is split by income level because households there buy different things.</p>
         <Chart
           id="towns"
+          share="inflation-by-town"
           title="Inflation by town"
           subtitle={`Annual % change, ${monthLabel(latestMonth)}`}
           height={360}

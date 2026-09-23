@@ -50,6 +50,20 @@ npm run build    # static output in web/dist
 - **Facts** (`src/lib/cpi.ts`): each plain-language sentence is computed from
   the data. Outlier item moves (>150% a year) are excluded from headlines.
 
+## Sharing & downloads
+
+- **Every chart** has CSV and image downloads. They are generated in the
+  browser from the chart's own data, and always include the title and UBOS
+  source. CSVs start with a UTF-8 BOM for Excel, and text cells that would
+  start a formula are neutralised.
+- **Shareable chart pages** live at `/charts/<slug>/` and are listed at
+  `/charts/`. The registry is `src/lib/share-charts.ts`, and descriptions are
+  computed from the data.
+- **Link previews** (`/og/<slug>.png`, 1200x630) are rendered at build time.
+  ECharts draws the chart to SVG server-side with the same option builders as
+  the browser (`src/lib/chart-options.ts`), light-theme colours are read from
+  `global.css`, and `@resvg/resvg-js` rasterises the card.
+
 ## Architecture & security
 
 - **No runtime dependency on UBOS.** The pipeline reads ubos.org and the census

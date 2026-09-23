@@ -1,0 +1,106 @@
+---
+// One chart on its own page: the thing people share. Its link preview is the
+// chart itself (/og/<slug>.png, rendered at build time).
+import Base from '../../layouts/Base.astro';
+import Chart from '../../components/Chart.astro';
+import { sharedCharts, type SharedChart } from '../../lib/share-charts';
+
+export function getStaticPaths() {
+  return sharedCharts.map((c) => ({ params: { slug: c.slug }, props: { c } }));
+}
+
+const { c } = Astro.props as { c: SharedChart };
+const url = new URL(`/charts/${c.slug}/`, Astro.site).href;
+const text = `${c.title}: ${c.description}`;
+const enc = encodeURIComponent;
+const shareLinks = [
+  { name: 'WhatsApp', href: `https://wa.me/?text=${enc(`${text} ${url}`)}` },
+  { name: 'X', href: `https://x.com/intent/post?text=${enc(c.title)}&url=${enc(url)}` },
+  { name: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}` },
+  { name: 'LinkedIn', href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}` },
+];
+const related = sharedCharts.filter((x) => x.slug !== c.slug && x.topic === c.topic).slice(0, 3);
+---
+
+<Base title={c.title} description={c.description} image={`/og/${c.slug}.png`}>
+  <div class="mx-auto max-w-5xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/charts/">Charts</a><span class="px-1.5" aria-hidden="true">/</span><span>{c.topic}</span>
+    </nav>
+
+    <header class="pb-6 pt-4">
+      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">{c.title}</h1>
+      <p class="mt-3 max-w-3xl text-lg text-ink-2">{c.description}</p>
+    </header>
+
+    <Chart id="shared-chart" title={c.title} subtitle={c.subtitle} spec={c.spec} height={c.height} source={c.source} />
+
+    <section class="mt-6 grid gap-4 md:grid-cols-[1.4fr_1fr]">
+      <div class="card p-5">
+        <h2 class="font-semibold">Share this chart</h2>
+        <p class="mt-1 text-sm text-ink-2">The link shows a preview of the chart when you post it.</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          {shareLinks.map((s) => (
+            <a class="share-btn" href={s.href} target="_blank" rel="noopener noreferrer">{s.name}</a>
+          ))}
+          <button type="button" class="share-btn" id="copy-link" data-url={url}>Copy link</button>
+        </div>
+        <p id="copy-status" class="mt-2 h-5 text-sm text-ink-3" aria-live="polite"></p>
+      </div>
+      <div class="card p-5">
+        <h2 class="font-semibold">Go deeper</h2>
+        <a class="mt-2 block text-ink underline decoration-dotted underline-offset-2" href={c.page.href}>{c.page.label} →</a>
+        <p class="mt-3 text-sm text-ink-3">
+          Data: <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={c.source.url} rel="noopener">UBOS, {c.source.title}</a>.
+          Use the CSV button under the chart to download the numbers.
+        </p>
+      </div>
+    </section>
+
+    {related.length > 0 && (
+      <section class="mt-10">
+        <h2 class="text-xl font-semibold">More charts on {c.topic.toLowerCase()}</h2>
+        <ul class="mt-4 grid gap-4 sm:grid-cols-3">
+          {related.map((r) => (
+            <li>
+              <a href={`/charts/${r.slug}/`} class="card group block overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg">
+                <img src={`/og/${r.slug}.png`} alt="" width="1200" height="630" loading="lazy" decoding="async" class="aspect-[1200/630] w-full border-b border-line object-cover" />
+                <span class="block p-3 text-sm font-medium group-hover:underline">{r.title}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+  </div>
+</Base>
+
+<script>
+  const btn = document.getElementById('copy-link') as HTMLButtonElement;
+  const status = document.getElementById('copy-status')!;
+  btn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(btn.dataset.url!);
+      status.textContent = 'Link copied.';
+    } catch {
+      status.textContent = btn.dataset.url!;
+    }
+  });
+</script>
+
+<style>
+  .share-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 500;
+    background: var(--surface-2);
+    color: var(--ink);
+    transition: background 0.15s;
+  }
+  .share-btn:hover {
+    background: var(--grid);
+  }
+</style>

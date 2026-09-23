@@ -65,6 +65,7 @@ const shareSeries = [
     <section class="grid gap-4 lg:grid-cols-2">
       <Chart
         id="growth-annual"
+        share="uganda-gdp-growth"
         title="Growth each year"
         subtitle="Real GDP growth, % (financial years, July to June)"
         height={320}
@@ -90,6 +91,7 @@ const shareSeries = [
       <div class="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <Chart
           id="structure"
+          share="uganda-economy-by-sector"
           title="Share of GDP by sector"
           subtitle="% of GDP at current prices"
           height={340}
@@ -119,6 +121,7 @@ const shareSeries = [
       <div class="flex flex-col gap-4">
         <Chart
           id="per-person"
+          share="uganda-gdp-per-person"
           title="GDP per person"
           subtitle="US dollars at each year’s exchange rate"
           height={250}

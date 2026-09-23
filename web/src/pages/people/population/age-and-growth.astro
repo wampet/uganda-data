@@ -76,6 +76,7 @@ const tiles = (s: typeof s0) => [
       <div class="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         <Chart
           id="pyramid"
+          share="uganda-population-pyramid"
           title="Population by age and sex"
           subtitle={`${START}`}
           height={520}
@@ -110,6 +111,7 @@ const tiles = (s: typeof s0) => [
       <div class="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         <Chart
           id="growth"
+          share="uganda-population-growth"
           title="Population, 1911 to 2050"
           subtitle="Census counts (dots) and UBOS’s 2014-based projection (dashed)"
           height={360}
@@ -145,6 +147,7 @@ const tiles = (s: typeof s0) => [
     <section class="mt-14 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
       <Chart
         id="life"
+        share="uganda-life-expectancy"
         title="Life expectancy at birth"
         subtitle="Years, by census"
         height={320}

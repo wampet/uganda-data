@@ -5,10 +5,14 @@ import { sections, topicUrl } from '../lib/data';
 interface Props {
   title: string;
   description?: string;
+  /** site-relative path of a 1200x630 link-preview image, e.g. /og/uganda-inflation-rate.png */
+  image?: string;
 }
-const { title, description = 'Uganda’s official statistics, made easy to read.' } = Astro.props;
+const { title, description = 'Uganda’s official statistics, made easy to read.', image } = Astro.props;
 const fullTitle = title === 'Home' ? 'Uganda in Data — official statistics, made easy' : `${title} · Uganda in Data`;
 const path = Astro.url.pathname;
+const canonical = new URL(path, Astro.site);
+const imageUrl = image ? new URL(image, Astro.site).href : undefined;
 ---
 
 <!doctype html>
@@ -18,8 +22,24 @@ const path = Astro.url.pathname;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Uganda in Data" />
+    <meta property="og:url" content={canonical.href} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
+    {imageUrl && (
+      <>
+        <meta property="og:image" content={imageUrl} />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content={title} />
+      </>
+    )}
+    <meta name="twitter:card" content={imageUrl ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    {imageUrl && <meta name="twitter:image" content={imageUrl} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- Apply saved theme before paint to avoid a flash. A same-origin file (not an
          inline script) so the Content-Security-Policy allows it without a hash. -->
@@ -76,9 +96,11 @@ const path = Astro.url.pathname;
                   </ul>
                 </div>
               ))}
-              <a href="/sources/" class="block border-t border-line px-2 pt-2 text-sm text-ink-2 hover:text-ink">All UBOS files</a>
+              <a href="/charts/" class="block border-t border-line px-2 pt-2 text-sm text-ink-2 hover:text-ink">Charts</a>
+              <a href="/sources/" class="block px-2 pt-1 text-sm text-ink-2 hover:text-ink">All UBOS files</a>
             </div>
           </details>
+          <a href="/charts/" class="hidden rounded-lg px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink sm:block">Charts</a>
           <a href="/sources/" class="hidden rounded-lg px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink sm:block">All UBOS files</a>
           <button id="theme-toggle" type="button" class="grid h-9 w-9 place-items-center rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink" aria-label="Toggle dark mode">
             <svg class="sun" viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="3.5" /><path d="M10 1.5v2M10 16.5v2M1.5 10h2M16.5 10h2M4 4l1.4 1.4M14.6 14.6 16 16M4 16l1.4-1.4M14.6 5.4 16 4" /></svg>
