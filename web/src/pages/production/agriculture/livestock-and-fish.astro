@@ -1,0 +1,77 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { agriculture, farmingFacts, latest, lines, sourcesFor, years } from '../../../lib/production';
+
+const facts = farmingFacts();
+const src = sourcesFor('agriculture');
+const pick = (re: RegExp) => src.find((s) => re.test(s.title)) ?? src[0];
+const fish = agriculture.fish;
+const stock = agriculture.livestock;
+const honey = agriculture.honey;
+const poultry = latest(stock, 'Poultry');
+---
+
+<Base title="Livestock, fish and honey" description={`Uganda’s animals, fish catch by lake, milk and honey. ${facts[0]}`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/production/">Production</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/production/agriculture/">Agriculture & Fishing</a>
+    </nav>
+
+    <header class="pb-10 pt-6">
+      <p class="text-sm font-medium text-brand-ink">Farming & fishing</p>
+      <h1 class="mt-2 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Livestock, fish and honey</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">{facts[0]}</p>
+    </header>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="fish"
+        title="Fish caught, by lake"
+        subtitle="Tonnes a year; the three biggest lakes"
+        height={330}
+        source={pick(/fish production estimates/i)}
+        spec={{ kind: 'line', xNumeric: true, digits: 0, x: years(fish), series: lines(fish, ['Albert', 'Victoria', 'Kyoga'], { points: true }) }}
+      />
+      <Chart
+        id="honey"
+        title="Where Uganda’s honey comes from"
+        subtitle="Kilograms harvested in six months, by sub-region (Livestock Census 2021)"
+        height={330}
+        source={pick(/honey/i)}
+        spec={{ kind: 'bar', digits: 0, labelWidth: 110, categories: honey.regions.map((r) => r.region), series: [{ name: 'Honey, kg', data: honey.regions.map((r) => r.kg) }] }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Animals and milk</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">{facts[2]} {facts[1]}</p>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="livestock"
+          title="Livestock numbers"
+          subtitle="Thousands of animals"
+          height={320}
+          source={pick(/livestock numbers/i)}
+          spec={{ kind: 'line', xNumeric: true, digits: 0, x: years(stock), series: lines(stock, ['Goats', 'Cattle', 'Sheep', 'Pigs'], { points: true }) }}
+        />
+        <Chart
+          id="milk"
+          title="Milk produced"
+          subtitle="Billion litres a year"
+          height={320}
+          source={pick(/milk/i)}
+          spec={{ kind: 'line', xNumeric: true, digits: 2, area: true, x: years(agriculture.milk), series: lines(agriculture.milk, ['Milk produced'], { points: true }) }}
+        />
+      </div>
+      <p class="mt-3 text-sm text-ink-3">{`Poultry is left off the livestock chart: at about ${(poultry.value / 1000).toFixed(0)} million birds in ${poultry.year}, it would flatten the other lines.`}</p>
+    </section>
+
+    <NotesAndSources
+      notes={agriculture.notes}
+      sources={src}
+      method="Fish catch joins a 2014–2018 table with the 2019–2023 estimates. Lake names differ between the two releases and were matched by hand. The honey table lists both regions and sub-regions; we checked that each adds up to UBOS’s national total."
+    />
+  </div>
+</Base>

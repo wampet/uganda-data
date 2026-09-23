@@ -44,7 +44,44 @@ const districtExplorer = {
   blurb: 'Census 2024 on a map: schooling, jobs, power, water and health for all 146 districts and cities.',
 };
 
+// Production section pages (see lib/production.ts).
+const madeInUganda = {
+  href: '/production/industry/made-in-uganda/',
+  title: 'Made in Uganda: what we produce, and what we import',
+  blurb: 'Cement, beer, sugar, cooking oil, soft drinks and spirits: how much we make ourselves, plus factory growth by sector.',
+};
+const productionPages = {
+  energy: [{
+    href: '/production/energy/power-and-fuel/',
+    title: 'Power and fuel',
+    blurb: 'Generating capacity by source, electricity customers, and fuel prices and sales since 2013.',
+  }],
+  industry: [madeInUganda],
+  construction: [madeInUganda],
+  transport: [{
+    href: '/production/transport/getting-around/',
+    title: 'Getting around Uganda',
+    blurb: 'New motorcycles vs cars, paved roads, Entebbe passengers since 2012, and ferries.',
+  }],
+  tourism: [{
+    href: '/production/tourism/visitors/',
+    title: 'Visitors to Uganda',
+    blurb: 'Arrivals since 2019 and the most visited national parks.',
+  }],
+  communication: [{
+    href: '/production/communication/mobile-money/',
+    title: 'Mobile money',
+    blurb: 'Money sent, accounts and agents since 2009.',
+  }],
+  agriculture: [{
+    href: '/production/agriculture/livestock-and-fish/',
+    title: 'Livestock, fish and honey',
+    blurb: 'Fish catch by lake, animal numbers, milk, and where Uganda’s honey comes from.',
+  }],
+};
+
 export const featured: Record<string, { href: string; title: string; blurb: string }[]> = {
+  ...productionPages,
   'admin-units': [districtExplorer],
   population: [
     {

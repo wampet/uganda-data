@@ -2,12 +2,13 @@
 
     python run.py catalog [--refresh]   # index every file on ubos.org
     python run.py build   [--refresh]   # catalog + parse + write web/src/data
+    python run.py production            # Production section only (energy, industry, ...)
 """
 
 import sys
 from collections import Counter
 
-from ubos import catalog, export
+from ubos import catalog, export, production
 
 
 def main(argv: list[str]) -> None:
@@ -24,6 +25,9 @@ def main(argv: list[str]) -> None:
         print("publications by topic:", dict(Counter(r["topic"] for r in records if r["kind"] == "publication").most_common()))
     elif cmd == "build":
         export.build(refresh=refresh)
+        production.build()
+    elif cmd == "production":
+        production.build()
     else:
         sys.exit(f"unknown command: {cmd}")
 

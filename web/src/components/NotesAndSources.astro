@@ -1,0 +1,34 @@
+---
+// Footer block for data pages: data-quality notes (problems we found in the
+// source and how we handled them) and the UBOS files used.
+interface Props {
+  notes?: string[];
+  sources: { title: string; url: string }[];
+  method?: string;
+}
+const { notes = [], sources, method } = Astro.props;
+---
+
+<section class="mt-12 grid gap-4 lg:grid-cols-2">
+  <div class="card p-5 text-ink-2">
+    <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+    {method && <p class="mt-2">{method}</p>}
+    {notes.length > 0 && (
+      <>
+        <h3 class="mt-4 text-sm font-medium uppercase tracking-wide text-ink-3">Problems we found in the source data</h3>
+        <ul class="mt-2 space-y-2 text-sm">
+          {notes.map((n) => <li class="border-l-2 border-line pl-3">{n}</li>)}
+        </ul>
+      </>
+    )}
+  </div>
+  <div class="card p-5">
+    <h2 class="text-lg font-semibold">Where this comes from</h2>
+    <p class="mt-1 text-sm text-ink-2">Uganda Bureau of Statistics tables used on this page:</p>
+    <ul class="mt-3 space-y-1.5 text-sm">
+      {sources.map((s) => (
+        <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+      ))}
+    </ul>
+  </div>
+</section>

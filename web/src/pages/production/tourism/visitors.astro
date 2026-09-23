@@ -1,0 +1,65 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { fmtM, fmtN, latest, sourcesFor, tourism, tourismFacts } from '../../../lib/production';
+
+const facts = tourismFacts();
+const src = sourcesFor('tourism');
+const pick = (re: RegExp) => src.find((s) => re.test(s.title)) ?? src[0];
+const arr = tourism.arrivals;
+const vis = tourism.visitors;
+const last = latest(arr, 'All arrivals');
+const parks = tourism.parks;
+const li = parks.years.length - 1;
+const ranked = [...parks.rows].filter((r) => r.values[li] != null).sort((a, b) => b.values[li]! - a.values[li]!);
+
+// Arrivals and tourist (visitor) arrivals share one year axis.
+const xs = [...new Set([...arr.years, ...vis.years])].sort();
+const at = (p: typeof arr, name: string) => xs.map((y) => { const i = p.years.indexOf(y); return i < 0 ? null : p.series[name][i]; });
+---
+
+<Base title="Tourism and visitors to Uganda" description={`${fmtM(last.value, 2)} people arrived in Uganda in ${last.year}. See arrivals since 2019 and the most visited national parks.`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/production/">Production</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/production/tourism/">Tourism & Migration</a>
+    </nav>
+
+    <header class="pb-10 pt-6">
+      <p class="text-sm font-medium text-brand-ink">Tourism</p>
+      <h1 class="mt-2 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Visitors are back after Covid</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">{facts[0]}</p>
+    </header>
+
+    <section class="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+      <Chart
+        id="arrivals"
+        title="People arriving in Uganda"
+        subtitle="All arrivals at the borders and Entebbe, and those counted as visitors (tourists)"
+        height={340}
+        source={pick(/total arrivals and departures \(/i)}
+        spec={{
+          kind: 'line', xNumeric: true, digits: 0, x: xs.map(Number),
+          series: [
+            { name: 'All arrivals', data: at(arr, 'All arrivals'), color: 1, points: true },
+            { name: 'Visitor (tourist) arrivals', data: at(vis, 'Visitor (tourist) arrivals'), color: 2, points: true },
+          ],
+        }}
+      />
+      <Chart
+        id="parks"
+        title={`National park visitors, ${parks.years[li]}`}
+        subtitle={facts[1]}
+        height={340}
+        source={pick(/national parks/i)}
+        spec={{ kind: 'bar', digits: 0, unit: '', labelWidth: 150, categories: ranked.map((r) => r.name.replace(/ National Park$/i, '')), series: [{ name: 'Visitors', data: ranked.map((r) => r.values[li]) }] }}
+      />
+    </section>
+
+    <p class="mt-3 text-sm text-ink-3">
+      Most visited park: {ranked[0].name} ({fmtN(ranked[0].values[li]!)} visitors). Park visits are UWA counts of paying visitors.
+    </p>
+
+    <NotesAndSources notes={tourism.notes} sources={src} />
+  </div>
+</Base>

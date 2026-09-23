@@ -1,0 +1,58 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { communication, mobileMoneyFacts, sourcesFor, years } from '../../../lib/production';
+
+const mm = communication.mobile_money;
+const facts = mobileMoneyFacts();
+const src = sourcesFor('communication');
+const x = years(mm);
+---
+
+<Base title="Mobile money in Uganda" description={`${facts[0]} ${facts[1]}`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/production/">Production</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/production/communication/">Phones & Internet</a>
+    </nav>
+
+    <header class="pb-10 pt-6">
+      <p class="text-sm font-medium text-brand-ink">Mobile money · Bank of Uganda data via UBOS</p>
+      <h1 class="mt-2 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">From a novelty to how Uganda pays</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">{facts[0]}</p>
+    </header>
+
+    <section>
+      <Chart
+        id="mm-value"
+        title="Money sent through mobile money each year"
+        subtitle="Value of transactions, trillion UGX (gaps are years we left out; see the notes below)"
+        height={340}
+        source={src[0]}
+        spec={{ kind: 'line', xNumeric: true, digits: 1, area: true, x, series: [{ name: 'Value, trillion UGX', data: mm.series.value, color: 1, points: true }] }}
+      />
+    </section>
+
+    <section class="mt-4 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="mm-customers"
+        title="Registered mobile-money accounts"
+        subtitle="Millions"
+        height={300}
+        source={src[0]}
+        spec={{ kind: 'line', xNumeric: true, digits: 1, x, series: [{ name: 'Accounts, millions', data: mm.series.customers, color: 1, points: true }] }}
+      />
+      <Chart
+        id="mm-agents"
+        title="Mobile-money agents"
+        subtitle="Number of agents (the shops and kiosks where you cash in and out)"
+        height={300}
+        source={src[0]}
+        spec={{ kind: 'line', xNumeric: true, digits: 0, x, series: [{ name: 'Agents', data: mm.series.agents, color: 1, points: true }] }}
+      />
+    </section>
+    <p class="mt-3 text-sm text-ink-3">{facts[1]}</p>
+
+    <NotesAndSources notes={communication.notes} sources={src} />
+  </div>
+</Base>

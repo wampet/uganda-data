@@ -1,0 +1,73 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { lines, sourcesFor, transport, transportFacts, years } from '../../../lib/production';
+
+const facts = transportFacts();
+const src = sourcesFor('transport');
+const pick = (re: RegExp) => src.find((s) => re.test(s.title)) ?? src[0];
+const roads = transport.roads;
+---
+
+<Base title="Getting around Uganda" description={`Roads, boda bodas, flights and ferries. ${facts[0]}`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/production/">Production</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/production/transport/">Transport</a>
+    </nav>
+
+    <header class="pb-10 pt-6">
+      <p class="text-sm font-medium text-brand-ink">Transport</p>
+      <h1 class="mt-2 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Getting around: a country on two wheels</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">{facts[0]}</p>
+    </header>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="registrations"
+        title="New vehicles registered each year"
+        subtitle="Private motorcycles and cars newly registered with URA"
+        height={320}
+        source={pick(/registered/i)}
+        spec={{ kind: 'line', xNumeric: true, digits: 0, x: years(transport.registrations), series: lines(transport.registrations, ['Motorcycles', 'Cars'], { points: true }) }}
+      />
+      <Chart
+        id="roads"
+        title="Paved and unpaved national roads"
+        subtitle="Kilometres, by financial year"
+        height={320}
+        source={pick(/road network/i)}
+        spec={{ kind: 'line', digits: 0, unit: ' km', x: roads.years, series: lines(roads, ['Unpaved', 'Paved'], { points: true }) }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Flying and sailing</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">{facts[1]}</p>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="entebbe"
+          title="International passengers at Entebbe"
+          subtitle="Arriving plus departing, per year"
+          height={320}
+          source={pick(/aircraft/i)}
+          spec={{ kind: 'line', xNumeric: true, digits: 0, area: true, x: years(transport.entebbe), series: lines(transport.entebbe, ['International passengers'], { points: true }) }}
+        />
+        <Chart
+          id="ferries"
+          title="Ferry passengers"
+          subtitle="Carried by registered ferry operators"
+          height={320}
+          source={pick(/ferry/i)}
+          spec={{ kind: 'line', xNumeric: true, digits: 0, x: years(transport.ferries), series: lines(transport.ferries, ['Ferry passengers'], { points: true }) }}
+        />
+      </div>
+      <p class="mt-3 text-sm text-ink-3">{facts[2]}</p>
+    </section>
+
+    <NotesAndSources
+      sources={src}
+      method="Entebbe passengers join a 2012–2024 series (arrivals plus departures) with a 2019–2023 series of totals; the overlapping years match exactly."
+    />
+  </div>
+</Base>

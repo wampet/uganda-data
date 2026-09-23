@@ -1,0 +1,96 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { energy, energyFacts, fmtN, latest, lines, sourcesFor, years } from '../../../lib/production';
+
+const cap = energy.capacity;
+const li = cap.years.length - 1;
+const totalMw = Object.values(cap.series).reduce((a, v) => a + (v[li] ?? 0), 0);
+const hydro = cap.series.Hydro[li]!;
+const cust = latest(energy.customers, 'All electricity customers');
+const petrol = latest(energy.fuel_prices, 'Petrol');
+const facts = energyFacts();
+const src = sourcesFor('energy');
+const one = src[0];
+
+const tiles = [
+  { label: 'Power plants can produce', value: `${fmtN(totalMw)} MW`, note: `installed capacity, ${cap.years[li]}` },
+  { label: 'From hydro dams', value: `${Math.round((hydro / totalMw) * 100)}%`, note: `${fmtN(hydro)} MW` },
+  { label: 'Electricity customers', value: `${(cust.value / 1e6).toFixed(1)} million`, note: cust.year },
+  { label: 'Petrol, per litre', value: `UGX ${fmtN(petrol.value)}`, note: `average, ${petrol.year}` },
+];
+---
+
+<Base title="Power and fuel in Uganda" description={`Uganda can generate ${fmtN(totalMw)} MW of electricity, ${Math.round((hydro / totalMw) * 100)}% of it from hydro. See power capacity, electricity customers, and fuel prices and sales since 2013.`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/production/">Production</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/production/energy/">Energy & Fuel</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Energy</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Power and fuel: more dams, dearer petrol</h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{facts[0]} {facts[1]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="capacity"
+        title="How much electricity Uganda can generate"
+        subtitle="Installed capacity by source, megawatts (MW)"
+        height={320}
+        source={one}
+        spec={{ kind: 'line', xNumeric: true, digits: 0, unit: ' MW', x: years(cap), series: lines(cap, Object.keys(cap.series), { points: true }) }}
+      />
+      <Chart
+        id="customers"
+        title="Homes and businesses on the grid"
+        subtitle="Electricity customers, all distributors"
+        height={320}
+        source={src.find((s) => /consumers/i.test(s.title)) ?? one}
+        spec={{ kind: 'line', xNumeric: true, digits: 0, area: true, x: years(energy.customers), series: lines(energy.customers, ['All electricity customers'], { points: true }) }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Fuel: what it costs and how much we use</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">{facts[3]}</p>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="fuel-prices"
+          title="Pump prices"
+          subtitle="Average retail price, UGX per litre"
+          height={320}
+          source={src.find((s) => /retail price/i.test(s.title)) ?? one}
+          spec={{ kind: 'line', xNumeric: true, digits: 0, x: years(energy.fuel_prices), series: lines(energy.fuel_prices, ['Petrol', 'Diesel', 'Kerosene'], { points: true }) }}
+        />
+        <Chart
+          id="fuel-sales"
+          title="Fuel sold in Uganda"
+          subtitle="Cubic metres a year (1 m³ = 1,000 litres)"
+          height={320}
+          source={src.find((s) => /sales/i.test(s.title)) ?? one}
+          spec={{ kind: 'line', xNumeric: true, digits: 0, x: years(energy.fuel_sales), series: lines(energy.fuel_sales, ['Petrol', 'Diesel', 'Kerosene', 'Jet fuel']) }}
+        />
+      </div>
+    </section>
+
+    <NotesAndSources
+      notes={energy.notes}
+      sources={src}
+      method="Fuel prices and sales join two UBOS releases (2013–2021 and 2019–2023); where they overlap we checked that they agree before joining. Older sales figures in litres were converted to cubic metres."
+    />
+  </div>
+</Base>

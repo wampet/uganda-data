@@ -1,0 +1,77 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { industry, industryFacts, lines, sourcesFor, years } from '../../../lib/production';
+
+const products = [...industry.products].sort((a, b) => (b.local_share ?? 0) - (a.local_share ?? 0));
+const year = products[0].latest_year;
+const facts = industryFacts();
+const src = sourcesFor('industry');
+const growth = [...industry.sector_growth.sectors].filter((x) => x.growth != null).sort((a, b) => b.growth! - a.growth!);
+const srcFor = (name: string) => src.find((s) => s.title.toLowerCase().includes(name.toLowerCase())) ?? src[0];
+---
+
+<Base title="Made in Uganda" description={`How much of what Uganda uses does it make itself? ${facts[0]}`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/production/">Production</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/production/industry/">Business & Industry</a>
+    </nav>
+
+    <header class="pb-10 pt-6">
+      <p class="text-sm font-medium text-brand-ink">Industry · {year}</p>
+      <h1 class="mt-2 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Made in Uganda: what we produce, and what we still import</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">{facts[0]}</p>
+    </header>
+
+    <section class="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+      <Chart
+        id="local-share"
+        title="How much of what we use is made here"
+        subtitle={`Share of what Ugandans used in ${year} that was made in Uganda (the rest is imported)`}
+        height={300}
+        source={src[0]}
+        spec={{
+          kind: 'bar', unit: '%', digits: 0, stacked: true, yMax: 100, labelWidth: 90,
+          categories: products.map((p) => p.name),
+          series: [
+            { name: 'Made in Uganda', data: products.map((p) => p.local_share), color: 1 },
+            { name: 'Imported', data: products.map((p) => (p.local_share == null ? null : Math.round((100 - p.local_share) * 10) / 10)), color: 2 },
+          ],
+        }}
+      />
+      <Chart
+        id="sector-growth"
+        title={`Which factories grew in ${industry.sector_growth.year}?`}
+        subtitle={`Change in output on the year before; all manufacturing ${industry.sector_growth.total > 0 ? '+' : ''}${industry.sector_growth.total}%`}
+        height={300}
+        source={src.find((s) => /percentage changes/i.test(s.title)) ?? src[0]}
+        spec={{ kind: 'bar', unit: '%', digits: 1, labelWidth: 170, categories: growth.map((x) => x.name), series: [{ name: 'Growth', data: growth.map((x) => x.growth) }] }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Product by product</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">
+        “Used in Uganda” is what UBOS calls net domestic supply: what we make, plus imports, minus exports.
+      </p>
+      <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {products.map((p) => (
+          <Chart
+            id={`product-${p.name.toLowerCase().replace(/[^a-z]+/g, '-')}`}
+            title={p.name}
+            subtitle={`${p.unit}; ${Math.round(p.local_share ?? 0)}% made locally in ${p.latest_year}`}
+            height={230}
+            source={srcFor(p.name)}
+            spec={{ kind: 'line', xNumeric: true, digits: p.unit.startsWith('million') ? 1 : 0, x: years(p), series: lines(p, ['Production', 'Imports', 'Used in Uganda'], { points: true }) }}
+          />
+        ))}
+      </div>
+    </section>
+
+    <NotesAndSources
+      sources={src}
+      method="“Made locally” is production minus exports, as a share of net domestic supply. Each product table was checked: production + imports − exports must equal UBOS’s net domestic supply."
+    />
+  </div>
+</Base>
