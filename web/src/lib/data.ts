@@ -128,6 +128,13 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
       blurb: 'Poverty since 1999, by region, who moved in and out of poverty, and daily life: shoes, blankets, meals.',
     },
   ],
+  'government-finance': [
+    {
+      href: '/economy/government-finance/where-the-money-goes/',
+      title: 'Where does government money go?',
+      blurb: 'Spending out of every UGX 100,000, revenue, central vs local government, and tax registrations.',
+    },
+  ],
   trade: [
     {
       href: '/economy/trade/exports-and-imports/',

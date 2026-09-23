@@ -13,6 +13,7 @@ import * as R from './road';
 import * as E from './education';
 import * as J from './jobs';
 import * as H from './health';
+import * as GF from './government';
 
 export interface SharedChart {
   slug: string;
@@ -302,6 +303,17 @@ export const sharedCharts: SharedChart[] = [
     source: src(H.sources.under5),
     page: { href: '/people/health/health-in-uganda/', label: 'More on health' },
     topic: 'People',
+  },
+  {
+    slug: 'uganda-government-spending',
+    title: 'Where Uganda’s government spends its money',
+    subtitle: `Out of every UGX 100,000 spent, ${GF.year}`,
+    description: `Government spent ${GF.trillion(GF.spending)} in ${GF.year}. Education got UGX ${GF.byFunction.find((f) => f.official === 'Education')!.per100k.toLocaleString('en-UG')} and health UGX ${GF.byFunction.find((f) => f.official === 'Health')!.per100k.toLocaleString('en-UG')} of every UGX 100,000.`,
+    spec: { kind: 'bar', unit: '', digits: 0, categories: GF.byFunction.map((f) => f.name), series: [{ name: 'UGX out of 100,000', data: GF.byFunction.map((f) => f.per100k) }], labelWidth: 230 },
+    height: 460,
+    source: src(GF.sources.functions),
+    page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
+    topic: 'Economy',
   },
   districtMap('grid', 'grid-electricity-by-district', 'Who has power from the grid?', 'Share of households using grid electricity for lighting.'),
   districtMap('out_of_school', 'children-out-of-school-by-district', 'Children out of school, by district', 'Share of children aged 6–12 not in school.'),

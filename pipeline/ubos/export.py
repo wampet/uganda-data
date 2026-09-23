@@ -633,6 +633,94 @@ def build_health(records: list[dict]) -> None:
     })
 
 
+def build_government(records: list[dict]) -> None:
+    def rows_of(r):
+        wb = openpyxl.load_workbook(get_file(r["url"]), data_only=True, read_only=True)
+        return [list(x) for x in wb.worksheets[0].iter_rows(values_only=True) if any(v is not None for v in x)]
+
+    def fy_columns(header):
+        return [(j, str(v).strip()) for j, v in enumerate(header) if v and "/" in str(v) and str(v).strip()[:2] == "20"]
+
+    def label(v):
+        return " ".join(str(v).split()) if v is not None else ""
+
+    # Spending by function (general government), million UGX.
+    s_fn = _dataset(records, "Functional classification of General Government expenditure for FY 2022-23")
+    rows = rows_of(s_fn)
+    h = next(i for i, r in enumerate(rows) if label(r[0]).lower() == "function")
+    years = fy_columns(rows[h])
+    functions, total = [], None
+    for r in rows[h + 1 :]:
+        name = label(r[0])
+        if not name or name.lower().startswith(("source", "note")):
+            continue
+        vals = [r[j] for j, _ in years]
+        if name.lower() == "total":
+            total = vals
+        else:
+            functions.append({"name": name, "values": vals})
+    for i, (_, y) in enumerate(years):
+        s = sum(f["values"][i] or 0 for f in functions)
+        if abs(s - total[i]) / total[i] > 0.005:
+            raise ValueError(f"government: functions sum {s:,.0f} != total {total[i]:,.0f} in {y}")
+
+    # Central vs local spending.
+    s_exp = _dataset(records, "General Government Expenditure for FYs 2022/23")
+    erows = rows_of(s_exp)
+    eh = next(i for i, r in enumerate(erows) if label(r[0]).lower() == "sector")
+    ey = fy_columns(erows[eh])
+    split = {label(r[0]).split(" expenditure")[0]: [r[j] for j, _ in ey] for r in erows[eh + 1 :] if "expenditure" in label(r[0]).lower()}
+    grand = next([r[j] for j, _ in ey] for r in erows if label(r[0]).lower() == "grand total")
+    if [y for _, y in ey] != [y for _, y in years] or grand != total:
+        raise ValueError("government: expenditure totals differ between the functional and sector tables")
+
+    # Revenue: UBOS put the 2023/24 local-government figure one row below its label.
+    s_rev = _dataset(records, "General Government Revenue for FYs 2022-23")
+    rrows = rows_of(s_rev)
+    rh = next(i for i, r in enumerate(rrows) if label(r[0]).lower() == "sector")
+    ry = fy_columns(rrows[rh])
+    revenue = {}
+    for k, r in enumerate(rrows[rh + 1 :], start=rh + 1):
+        name = label(r[0])
+        if not name or name.lower().startswith(("source", "note")):
+            continue
+        vals = []
+        for j, _ in ry:
+            v = r[j]
+            if v is None and k + 1 < len(rrows) and not label(rrows[k + 1][0]) and isinstance(rrows[k + 1][j], int | float):
+                v = rrows[k + 1][j]  # value sits on the unlabelled row below
+            vals.append(v)
+        revenue[name] = vals
+    rev_total = revenue.pop("Grand Total")
+    for i, (_, y) in enumerate(ry):
+        s = sum(v[i] or 0 for v in revenue.values())
+        if abs(s - rev_total[i]) / rev_total[i] > 0.005:
+            raise ValueError(f"government: revenue parts {s:,.0f} != total {rev_total[i]:,.0f} in {y}")
+
+    # Taxpayer registrations (TINs issued to individuals).
+    s_tin = _dataset(records, "Number of Tins issued to Individuals")
+    trows = rows_of(s_tin)
+    tins = [{"year": label(r[0]), "issued": r[1]} for r in trows if label(r[0])[:2] == "20" and "/" in label(r[0])]
+
+    _write("government.json", {
+        "sources": {k: _src(v) for k, v in {"functions": s_fn, "spending": s_exp, "revenue": s_rev, "tins": s_tin}.items()},
+        "unit": "million UGX",
+        "years": [y for _, y in years],
+        "functions": functions,
+        "total_spending": total,
+        "spending_split": split,
+        "revenue": revenue,
+        "total_revenue": rev_total,
+        "tins_individuals": tins,
+        "notes": [
+            "Figures are for general government (central and local), in current shillings. Local government figures for the latest year may be revised.",
+            "“General public services” is the international (COFOG) heading for running government itself, including interest on public debt.",
+            "Between 2022/23 and 2023/24 most development spending moved from “Defence” to “Public order and safety”, which looks like a change of classification rather than a real shift.",
+            "In UBOS’s revenue table the 2023/24 local government figure sits one row below its label; we read it from there.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -646,3 +734,4 @@ def build(refresh: bool = False) -> None:
     build_education(records)
     build_jobs(records)
     build_health(records)
+    build_government(records)

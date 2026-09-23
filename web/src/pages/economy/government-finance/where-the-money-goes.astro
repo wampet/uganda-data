@@ -1,0 +1,133 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  byFunction, facts, gap, notes, perPerson, prevYear, revenue, revenueParts, sources, spending, split, tins, trillion,
+  year,
+} from '../../../lib/government';
+
+const allFacts = facts();
+const tiles = [
+  { label: `Spending, ${year}`, value: trillion(spending), note: 'central and local government' },
+  { label: `Revenue, ${year}`, value: trillion(revenue), note: 'taxes and other income' },
+  { label: 'Gap', value: trillion(gap), note: 'spending minus revenue' },
+  { label: 'Spending per Ugandan', value: `UGX ${(Math.round(perPerson / 1000) * 1000).toLocaleString('en-UG')}`, note: 'using the 2024 census population' },
+];
+const byValue = [...byFunction];
+const changes = byFunction
+  .map((f) => ({ name: f.name, change: (f.value - f.prev) / 1e3 }))
+  .sort((a, b) => b.change - a.change);
+---
+
+<Base
+  title="Where does government money go?"
+  description={`Uganda's government spent ${trillion(spending)} in ${year}. See what it went on, out of every UGX 100,000, and how it compares with revenue.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/economy/">Economy</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/economy/government-finance/">Government Spending</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Public money · UBOS government finance statistics</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Where does government money go?
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[0]} {allFacts[1]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[2]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+      <Chart
+        id="per-100k"
+        share="uganda-government-spending"
+        title={`Out of every UGX 100,000 the government spent in ${year}`}
+        subtitle="Shillings, by purpose"
+        height={420}
+        source={sources.functions}
+        spec={{ kind: 'bar', unit: '', digits: 0, categories: byValue.map((f) => f.name), series: [{ name: `UGX out of 100,000`, data: byValue.map((f) => f.per100k) }], labelWidth: 220 }}
+      />
+      <div class="flex flex-col gap-4">
+        <Chart
+          id="split"
+          title="Who spends it?"
+          subtitle={`Share of spending, ${year}`}
+          height={160}
+          source={sources.spending}
+          spec={{ kind: 'bar', unit: '%', digits: 0, categories: split.map((s) => s.name), series: [{ name: 'Share of spending', data: split.map((s) => s.share) }], labelWidth: 140 }}
+        />
+        <Chart
+          id="revenue"
+          title="Where the money comes from"
+          subtitle={`Revenue, UGX trillion, ${year}`}
+          height={160}
+          source={sources.revenue}
+          spec={{ kind: 'bar', unit: '', digits: 1, categories: revenueParts.map((r) => r.name), series: [{ name: 'UGX trillion', data: revenueParts.map((r) => r.value / 1e6) }], labelWidth: 140 }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="changes"
+        title={`What changed since ${prevYear}?`}
+        subtitle="Change in spending, UGX billion"
+        height={380}
+        source={sources.functions}
+        spec={{ kind: 'bar', unit: '', digits: 0, categories: changes.map((c) => c.name), series: [{ name: 'Change, UGX billion', data: changes.map((c) => Math.round(c.change)) }], labelWidth: 220 }}
+      />
+      <Chart
+        id="tins"
+        title="More people registering to pay tax"
+        subtitle="Tax identification numbers (TINs) issued to individuals"
+        height={380}
+        source={sources.tins}
+        spec={{ kind: 'line', unit: '', digits: 0, x: tins.map((t) => t.year), yMin: 0, series: [{ name: 'TINs issued', data: tins.map((t) => t.issued), color: 1, points: true }] }}
+      />
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 2;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>
