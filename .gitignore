@@ -1,18 +1,130 @@
-# Python
-.venv/
-__pycache__/
-*.pyc
+# =============================================================================
+# Uganda in Data: repository ignore rules
+#   pipeline/  Python data pipeline
+#   web/       Astro static site
+# Generated site data (web/src/data, web/public/geo) IS committed on purpose,
+# so the site builds without re-running the pipeline.
+# =============================================================================
 
-# Pipeline: downloaded UBOS pages/files (re-fetchable) and intermediate data
+# ---- Secrets & environment ---------------------------------------------------
+.env
+.env.*
+!.env.example
+*.env
+.envrc
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials*.json
+service-account*.json
+.netrc
+
+# ---- Pipeline: downloaded & intermediate data ------------------------------
+# Raw UBOS downloads and crawl output are re-fetchable; never commit them.
 pipeline/cache/
 pipeline/data/
+pipeline/raw/
+pipeline/tmp/
+*.xlsx.tmp
+~$*.xlsx
+~$*.xls
+~$*.docx
+.~lock.*#
 
-# Web
-web/node_modules/
+# ---- Python -------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info/
+.eggs/
+build/
+dist/
+wheels/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+.tox/
+.nox/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+nosetests.xml
+.ipynb_checkpoints/
+*.duckdb
+*.duckdb.wal
+
+# ---- Node / Astro ---------------------------------------------------------------
+node_modules/
+.astro/
 web/dist/
-web/.astro/
+.npm/
+.pnpm-store/
+.yarn/*
+!.yarn/releases
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+.cache/
+.parcel-cache/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# OS / editors
+# ---- Deploy / hosting tooling -------------------------------------------------
+.wrangler/
+.vercel/
+.netlify/
+.dev.vars
+
+# ---- Logs & temp ------------------------------------------------------------------
+logs/
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ---- Editors & IDEs ---------------------------------------------------------------
+**/.vscode/*
+!**/.vscode/extensions.json
+.idea/
+*.iml
+*.sublime-workspace
+*.code-workspace
+.history/
+
+# ---- Claude Code: keep shared project config, ignore personal settings ---------
+.claude/settings.local.json
+
+# ---- OS -------------------------------------------------------------------------------
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 Thumbs.db
-.vscode/
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk

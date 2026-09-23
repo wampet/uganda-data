@@ -1,0 +1,26 @@
+# Normalise line endings: LF in the repo and working tree on every OS.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files: never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary
+*.xls binary
+*.pdf binary
+*.zip binary
+
+# Large generated JSON: collapse in GitHub diffs.
+web/src/data/**/*.json linguist-generated=true -diff
+web/public/geo/*.json linguist-generated=true -diff
+web/package-lock.json linguist-generated=true
