@@ -1,4 +1,5 @@
 ---
+import { safeJson } from '../../../lib/json';
 import Base from '../../../layouts/Base.astro';
 import Chart from '../../../components/Chart.astro';
 import DistrictSearch from '../../../components/DistrictSearch.astro';
@@ -150,7 +151,7 @@ const common = { unit: unitSuffix(ind), digits: digitsFor(ind) };
   </div>
 </Base>
 
-<script type="application/json" id="census-payload" set:html={JSON.stringify(payload)} />
+<script type="application/json" id="census-payload" set:html={safeJson(payload)} />
 
 <script>
   type Ind = {

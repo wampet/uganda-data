@@ -50,6 +50,25 @@ npm run build    # static output in web/dist
 - **Facts** (`src/lib/cpi.ts`): each plain-language sentence is computed from
   the data. Outlier item moves (>150% a year) are excluded from headlines.
 
+## Architecture & security
+
+- **No runtime dependency on UBOS.** The pipeline reads ubos.org and the census
+  portal's (undocumented) API only when it runs. The site serves committed
+  snapshots, so if UBOS is down or changes, the live site is unaffected and the
+  pipeline fails loudly.
+- **Static site, no server.** There is no database, no login and no user data.
+- **Content-Security-Policy.** Astro emits a CSP `<meta>` tag per page with a
+  hash for every inline script, so injected scripts cannot run.
+  `web/public/_headers` adds HSTS, `frame-ancestors 'none'`, `nosniff`, a
+  referrer policy, a permissions policy and cache rules.
+- **Untrusted data.** UBOS data embedded in `<script type="application/json">`
+  goes through `safeJson()` (escapes `<`, `>`, `&`, U+2028/9). Links are
+  restricted to http(s). Tooltips escape labels. `.xlsx` parsing requires
+  `defusedxml`, and the pipeline refuses to run without it. TLS verification
+  is always on.
+- **Dependencies.** Dependabot opens weekly grouped PRs for npm, pip and
+  Actions.
+
 ## Status
 
 | Topic | Interactive pages | Source files indexed |

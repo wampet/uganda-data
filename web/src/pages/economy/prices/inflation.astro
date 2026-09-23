@@ -1,4 +1,5 @@
 ---
+import { safeJson } from '../../../lib/json';
 import Base from '../../../layouts/Base.astro';
 import Chart from '../../../components/Chart.astro';
 import { catalog, cpi, fmtDate, fmtPct, monthLabel } from '../../../lib/data';
@@ -47,7 +48,7 @@ const cpiFiles = catalog.filter((c) => c.family === 'cpi').slice(0, 6);
 
         <!-- Shilling calculator: the number in the reader's own money -->
         <div class="calc card mt-6 p-4 sm:p-5" id="calc">
-          <script type="application/json" set:html={JSON.stringify(headlineIndex)} />
+          <script type="application/json" set:html={safeJson(headlineIndex)} />
           <label class="text-sm text-ink-2" for="calc-amount">What did it cost…</label>
           <div class="mt-2 flex flex-wrap items-center gap-2 text-base">
             <span class="text-ink-2">UGX</span>
@@ -81,7 +82,7 @@ const cpiFiles = catalog.filter((c) => c.family === 'cpi').slice(0, 6);
       <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
       <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[1]}</p>
       <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
-      <script type="application/json" id="facts-data" set:html={JSON.stringify(allFacts)} />
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
     </section>
 
     <!-- Trend + categories, linked -->

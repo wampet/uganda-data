@@ -125,6 +125,9 @@ def _entries(block, kind: str, ubos_id: int, topic: str, page_url: str):
         if not a:
             continue
         url = _encode_url(urljoin(page_url, a["href"].strip()))
+        # Only plain web links: never pass javascript:/data: URLs through to the site.
+        if not url.lower().startswith(("https://", "http://")):
+            continue
         title = " ".join(a.get_text(" ", strip=True).split())
         fmt = Path(url.split("?")[0]).suffix.lower().lstrip(".") or "html"
         yield {

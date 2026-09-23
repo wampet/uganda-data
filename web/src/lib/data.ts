@@ -21,7 +21,10 @@ export interface Cpi {
 }
 
 export const sections = taxonomyJson as Section[];
-export const catalog = catalogJson as CatalogEntry[];
+// Defence in depth: the pipeline already drops non-web links, but never render
+// a third-party URL into an href unless it is plain http(s).
+const isWebUrl = (u: string) => /^https?:\/\//i.test(u);
+export const catalog = (catalogJson as CatalogEntry[]).filter((e) => isWebUrl(e.url));
 export const cpi = cpiJson as unknown as Cpi;
 
 export const topicIndex = new Map(
