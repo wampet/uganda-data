@@ -56,6 +56,20 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
   ],
   education: [{ ...districtExplorer, href: '/places/districts/?show=out_of_school', title: 'Children out of school, by district' }],
   jobs: [{ ...districtExplorer, href: '/places/districts/?show=neet', title: 'Youth not in work or school, by district' }],
+  trade: [
+    {
+      href: '/economy/trade/exports-and-imports/',
+      title: 'What does Uganda sell, and to whom?',
+      blurb: 'Exports and imports since 1996, top products and partners, with and without gold.',
+    },
+  ],
+  gdp: [
+    {
+      href: '/economy/gdp/economic-growth/',
+      title: 'Is the economy growing?',
+      blurb: 'GDP growth by year and quarter, what the economy is made of, GDP per person and the informal sector.',
+    },
+  ],
   prices: [
     {
       href: '/economy/prices/inflation/',
@@ -70,6 +84,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export function monthLabel(ym: string, long = false) {
+  if (!/^\d{4}-\d{2}$/.test(ym)) return ym; // fiscal years / quarters pass through
   const [y, m] = ym.split('-').map(Number);
   return `${(long ? MONTHS_LONG : MONTHS)[m - 1]} ${y}`;
 }

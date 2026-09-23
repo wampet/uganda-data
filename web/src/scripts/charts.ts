@@ -28,7 +28,9 @@ const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "2026-08" -> "Aug 2026"; any other label (e.g. "2025/26", "2025/26 Q4") passes through. */
 const monthLabel = (ym: string) => {
+  if (!/^\d{4}-\d{2}$/.test(ym)) return ym;
   const [y, m] = ym.split('-').map(Number);
   return `${MONTHS[m - 1]} ${y}`;
 };

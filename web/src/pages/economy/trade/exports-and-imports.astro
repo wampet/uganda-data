@@ -1,0 +1,245 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import { fmtDate } from '../../../lib/data';
+import {
+  annual, bn, destinations, export_products, export_regions, facts, import_products, import_regions, latest, monthly, notes, origins,
+  sources, year,
+} from '../../../lib/trade';
+
+const allFacts = facts();
+const L = annual.years.length - 1;
+const recent = Math.max(0, monthly.months.length - 60); // last 5 years of months
+
+// Totals chart can switch between "all goods" and "excluding gold".
+const totals = {
+  all: [
+    { name: 'Exports', data: annual.exports, color: 1 },
+    { name: 'Imports', data: annual.imports, color: 2 },
+  ],
+  exGold: [
+    { name: 'Exports (excl. gold)', data: annual.exports_ex_gold, color: 1 },
+    { name: 'Imports (excl. gold)', data: annual.imports_ex_gold, color: 2 },
+  ],
+};
+
+// Click a product bar to see its history.
+const productPool = Object.fromEntries(export_products.map((p) => [p.name, p.values]));
+const topProducts = export_products.slice(0, 12);
+
+const tiles = [
+  { label: `Exports, ${year}`, value: bn(latest.exports), note: `${bn(latest.exportsExGold)} without gold` },
+  { label: `Imports, ${year}`, value: bn(latest.imports), note: `${bn(latest.importsExGold)} without gold` },
+  { label: 'Trade gap', value: bn(-latest.balance), note: 'imports minus exports' },
+  { label: 'Gold share of exports', value: `${Math.round(latest.goldShare)}%`, note: 'largely re-exported' },
+];
+const m = (v: number) => Math.round(v);
+---
+
+<Base
+  title="Uganda's trade: exports and imports"
+  description={`Uganda exported ${bn(latest.exports)} and imported ${bn(latest.imports)} of goods in ${year}. See what Uganda sells and buys, and with whom, since 1996.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/economy/">Economy</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/economy/trade/">Trade</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Trade in goods · updated {fmtDate(sources.monthly.updated)}</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Uganda sold {bn(latest.exports)} of goods to the world in {year}
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[1]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[3] ?? allFacts[0]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section>
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <h2 class="text-2xl font-semibold tracking-tight">Thirty years of trade</h2>
+        <div class="seg" role="radiogroup" aria-label="Include gold?">
+          <button type="button" role="radio" aria-checked="true" data-gold="all">All goods</button>
+          <button type="button" role="radio" aria-checked="false" data-gold="exGold">Without gold</button>
+        </div>
+      </div>
+      <div class="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <Chart
+          id="totals"
+          title="Exports and imports each year"
+          subtitle="US$ million, calendar years"
+          height={340}
+          source={sources.export_products}
+          spec={{ kind: 'line', unit: '', digits: 0, x: annual.years, xNumeric: true, series: totals.all }}
+        />
+        <Chart
+          id="monthly"
+          title="Month by month"
+          subtitle="US$ million, last five years (latest months provisional)"
+          height={340}
+          source={sources.monthly}
+          spec={{ kind: 'line', unit: '', digits: 0, x: monthly.months.slice(recent), series: [
+            { name: 'Exports', data: monthly.exports.slice(recent), color: 1 },
+            { name: 'Imports', data: monthly.imports.slice(recent), color: 2 },
+          ] }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">What Uganda sells</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">Click a product to see how its sales have changed since 1996.</p>
+      <div class="mt-4 grid gap-4 lg:grid-cols-[1fr_1.3fr]">
+        <Chart
+          id="products"
+          title={`Top exports, ${year}`}
+          subtitle="US$ million"
+          height={430}
+          source={sources.export_products}
+          spec={{ kind: 'bar', unit: '', digits: 0, categories: topProducts.map((p) => p.name), series: [{ name: 'US$ million', data: topProducts.map((p) => m(p.values[L])) }], selectTarget: 'product-history', labelWidth: 150 }}
+        />
+        <Chart
+          id="product-history"
+          title="Export earnings over time"
+          subtitle="US$ million per year"
+          height={430}
+          source={sources.export_products}
+          hint="Click a product to show it here"
+          spec={{ kind: 'line', unit: '', digits: 0, x: annual.years, xNumeric: true, series: [{ name: 'Coffee', data: productPool['Coffee'] ?? [], color: 1 }], pool: productPool }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-3">
+      <Chart
+        id="destinations"
+        title={`Who buys from Uganda, ${year}`}
+        subtitle="Top destinations, US$ million"
+        height={430}
+        source={sources.destinations}
+        spec={{ kind: 'bar', unit: '', digits: 0, categories: destinations.slice(0, 12).map((d) => d.name), series: [{ name: 'Exports, US$ million', data: destinations.slice(0, 12).map((d) => m(d.values[L])) }], labelWidth: 110 }}
+      />
+      <Chart
+        id="origins"
+        title={`Who Uganda buys from, ${year}`}
+        subtitle="Top suppliers, US$ million"
+        height={430}
+        source={sources.origins}
+        spec={{ kind: 'bar', unit: '', digits: 0, categories: origins.slice(0, 12).map((d) => d.name), series: [{ name: 'Imports, US$ million', data: origins.slice(0, 12).map((d) => m(d.values[L])) }], labelWidth: 110 }}
+      />
+      <Chart
+        id="imports"
+        title={`What Uganda buys, ${year}`}
+        subtitle="Top imports, US$ million"
+        height={430}
+        source={sources.import_products}
+        spec={{ kind: 'bar', unit: '', digits: 0, categories: import_products.slice(0, 12).map((d) => d.name), series: [{ name: 'Imports, US$ million', data: import_products.slice(0, 12).map((d) => m(d.values[L])) }], labelWidth: 150 }}
+      />
+    </section>
+
+    <section class="mt-4 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="export-regions"
+        title={`Exports by region, ${year}`}
+        subtitle="US$ million"
+        height={300}
+        source={sources.destinations}
+        spec={{ kind: 'bar', unit: '', digits: 0, categories: [...export_regions].sort((a, b) => b.values[L] - a.values[L]).map((r) => r.name), series: [{ name: 'US$ million', data: [...export_regions].sort((a, b) => b.values[L] - a.values[L]).map((r) => m(r.values[L])) }], labelWidth: 150 }}
+      />
+      <Chart
+        id="import-regions"
+        title={`Imports by region, ${year}`}
+        subtitle="US$ million"
+        height={300}
+        source={sources.origins}
+        spec={{ kind: 'bar', unit: '', digits: 0, categories: [...import_regions].sort((a, b) => b.values[L] - a.values[L]).map((r) => r.name), series: [{ name: 'US$ million', data: [...import_regions].sort((a, b) => b.values[L] - a.values[L]).map((r) => m(r.values[L])) }], labelWidth: 150 }}
+      />
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Why gold changes the picture</h2>
+        <p class="mt-2">
+          Uganda imports raw gold, refines it and exports it again. That inflates both exports and imports without
+          adding much to what Uganda itself produces, so we show totals with and without gold. In {year}, gold was
+          {' '}{bn(annual.gold_exports[L])} of exports and {bn(annual.gold_imports[L])} of imports.
+        </p>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
+          <li>Goods only (not services such as tourism), in US dollars, including informal cross-border trade.</li>
+          <li>The latest months are provisional and may be revised by UBOS.</li>
+          <li>Checked: products and countries add up to UBOS’s totals, and monthly figures add up to the yearly tables.</li>
+          {notes.map((n) => <li>{n}</li>)}
+        </ul>
+        <ul class="mt-3 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script type="application/json" id="trade-totals" set:html={safeJson(totals)} />
+
+<script>
+  const totals = JSON.parse(document.getElementById('trade-totals')!.textContent!);
+  const chart = document.getElementById('totals')!;
+  document.querySelectorAll<HTMLButtonElement>('[data-gold]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const key = b.dataset.gold as 'all' | 'exGold';
+      chart.dispatchEvent(new CustomEvent('chart:update', {
+        detail: { series: totals[key], subtitle: key === 'all' ? 'US$ million, calendar years' : 'US$ million, calendar years, excluding gold' },
+      }));
+      document.querySelectorAll('[data-gold]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+    }),
+  );
+
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 3;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>
+
+<style>
+  .seg {
+    display: inline-flex;
+    padding: 2px;
+    border-radius: 9px;
+    background: var(--surface-2);
+  }
+  .seg button {
+    padding: 4px 12px;
+    font-size: 14px;
+    border-radius: 7px;
+    color: var(--ink-2);
+  }
+  .seg button[aria-checked='true'] {
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  }
+</style>

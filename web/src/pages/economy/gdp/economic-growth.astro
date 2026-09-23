@@ -1,0 +1,171 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import { fmtDate } from '../../../lib/data';
+import { annual, biggest, facts, fastest, latest, quarterly, shares, sources } from '../../../lib/gdp';
+
+const allFacts = facts();
+const growthYears = annual.years.slice(1);
+const qStart = quarterly.yoy.findIndex((v) => v != null);
+
+const tiles = [
+  { label: 'Size of the economy', value: `UGX ${latest.sizeTrillion.toFixed(0)} trillion`, note: `≈ US$${latest.sizeUsdBillion.toFixed(0)} billion, ${latest.year}` },
+  { label: 'GDP per person', value: `US$${Math.round(latest.perCapitaUsd).toLocaleString()}`, note: `UGX ${(latest.perCapitaUgx / 1e6).toFixed(1)} million a year` },
+  { label: 'Latest quarter', value: `${quarterly.yoy[quarterly.yoy.length - 1]}%`, note: `${quarterly.quarters[quarterly.quarters.length - 1]} vs a year earlier` },
+  { label: 'Informal sector', value: latest.informal != null ? `${Math.round(latest.informal)}%` : '–', note: 'of all production' },
+];
+
+const shareSeries = [
+  { name: 'Services', key: 'Services', color: 1 },
+  { name: 'Agriculture', key: 'Agriculture', color: 3 },
+  { name: 'Industry', key: 'Industry', color: 2 },
+  { name: 'Taxes on products', key: 'Taxes on products', color: 'muted' as const },
+];
+---
+
+<Base
+  title="Uganda's economy: GDP growth"
+  description={`Uganda's economy grew ${latest.growth}% in ${latest.year} and is worth about UGX ${latest.sizeTrillion.toFixed(0)} trillion. See growth, what the economy is made of, and GDP per person.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/economy/">Economy</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/economy/gdp/">Economic Growth (GDP)</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">GDP · updated {fmtDate(sources.quarterly.updated)}</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Uganda’s economy grew {latest.growth}% in {latest.year}
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">
+          GDP (gross domestic product) is the value of everything produced in Uganda in a year. “Growth” counts only
+          real extra production, with price rises taken out.
+        </p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[2]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="growth-annual"
+        title="Growth each year"
+        subtitle="Real GDP growth, % (financial years, July to June)"
+        height={320}
+        source={sources.annual}
+        spec={{ kind: 'line', unit: '%', x: growthYears, zeroLine: true, series: [{ name: 'Real growth', data: annual.growth.slice(1), color: 1, points: true }] }}
+      />
+      <Chart
+        id="growth-quarterly"
+        title="Growth each quarter"
+        subtitle="Real GDP compared with the same quarter a year earlier, %"
+        height={320}
+        source={sources.quarterly}
+        spec={{ kind: 'line', unit: '%', x: quarterly.quarters.slice(qStart), zeroLine: true, series: [{ name: 'Year-on-year growth', data: quarterly.yoy.slice(qStart), color: 1 }] }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">What is the economy made of?</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">
+        Services (shops, transport, banks, schools, hospitals…) are the biggest part. Farming is about a quarter, and it
+        has been growing its share since {annual.years[0]}.
+      </p>
+      <div class="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <Chart
+          id="structure"
+          title="Share of GDP by sector"
+          subtitle="% of GDP at current prices"
+          height={340}
+          source={sources.annual}
+          spec={{ kind: 'line', unit: '%', x: annual.years, series: shareSeries.map((s) => ({ name: s.name, data: shares[s.key], color: s.color })) }}
+        />
+        <Chart
+          id="biggest"
+          title="The biggest activities"
+          subtitle={`Value produced in ${latest.year}, UGX trillion`}
+          height={400}
+          source={sources.annual}
+          spec={{ kind: 'bar', unit: '', digits: 1, categories: biggest.map((a) => a.label), series: [{ name: 'UGX trillion', data: biggest.map((a) => a.size) }], labelWidth: 150 }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="fastest"
+        title="Fastest-growing activities"
+        subtitle={`Real growth in ${latest.year}, % (activities at least 0.5% of GDP)`}
+        height={400}
+        source={sources.annual}
+        spec={{ kind: 'bar', unit: '%', categories: fastest.map((a) => a.label), series: [{ name: 'Real growth', data: fastest.map((a) => a.growthLatest) }], labelWidth: 150 }}
+      />
+      <div class="flex flex-col gap-4">
+        <Chart
+          id="per-person"
+          title="GDP per person"
+          subtitle="US dollars at each year’s exchange rate"
+          height={250}
+          source={sources.annual}
+          spec={{ kind: 'line', unit: '', digits: 0, x: annual.years, series: [{ name: 'US$ per person', data: annual.per_capita_usd, color: 1, points: true }] }}
+        />
+        {annual.informal_share && (
+          <Chart
+            id="informal"
+            title="The informal economy"
+            subtitle="Informal sector share of production, %"
+            height={200}
+            source={sources.annual}
+            spec={{ kind: 'line', unit: '%', x: annual.years, series: [{ name: 'Informal share', data: annual.informal_share, color: 1, points: true }] }}
+          />
+        )}
+      </div>
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Reading these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5">
+          <li><strong class="text-ink">Real growth</strong> uses constant 2016/17 prices, so it measures more goods and services, not higher prices.</li>
+          <li><strong class="text-ink">Size and shares</strong> use current prices, what things actually sold for that year.</li>
+          <li><strong class="text-ink">Financial years</strong> run from July to June: 2025/26 is July 2025 to June 2026.</li>
+          <li><strong class="text-ink">Quarterly growth</strong> compares each quarter with the same quarter a year earlier, so harvest seasons don’t distort it.</li>
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a> <span class="text-ink-3">(UBOS, {fmtDate(s.updated)})</span></li>
+          ))}
+        </ul>
+        <p class="mt-2 text-sm">Our growth figures are recalculated from UBOS’s tables and checked against the growth rates UBOS publishes; the build fails if they differ.</p>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 2;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>

@@ -12,7 +12,7 @@ from pathlib import Path
 from . import catalog as catalog_mod
 from . import census, geo
 from .http import get_file
-from .parsers import cpi, population
+from .parsers import cpi, gdp, population, trade
 from .taxonomy import SECTIONS
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -139,9 +139,127 @@ def build_population(records: list[dict]) -> None:
     })
 
 
+def build_gdp(records: list[dict]) -> None:
+    annual_src = max(
+        (r for r in records if r["family"] == "agdp" and r["kind"] == "dataset" and r["format"] in ("xls", "xlsx")),
+        key=lambda r: r["updated"] or "",
+    )
+    quarterly_src = max(
+        (r for r in records if r["family"] == "qgdp" and r["kind"] == "dataset" and "constant" in r["title"].lower()),
+        key=lambda r: r["updated"] or "",
+    )
+    print(f"  GDP sources: {annual_src['title']} | {quarterly_src['title']}")
+    annual = gdp.parse_annual(get_file(annual_src["url"]))
+    quarterly = gdp.parse_quarterly(get_file(quarterly_src["url"]))
+    # Keep detailed activities only (drop the "Agriculture, forestry and fishing" total, ISIC "A").
+    annual["activities"] = [a for a in annual["activities"] if a["isic"] != "A"]
+    _write("gdp.json", {
+        "sources": {"annual": _src(annual_src), "quarterly": _src(quarterly_src)},
+        "annual": annual,
+        "quarterly": quarterly,
+    })
+
+
+def _tidy_product(name: str) -> str:
+    """'Fixed vegetable fats and oils, crude, refined...' -> 'Fixed vegetable fats and oils'."""
+    special = {
+        "gold, non-monetary": "Gold",
+        "petroleum, petroleum products": "Fuel & petroleum products",
+        "road vehicles": "Vehicles",
+        "gold and gold compounds": "Gold",
+        "other nes": "Other products",
+    }
+    low = name.lower()
+    for k, v in special.items():
+        if low.startswith(k):
+            return v
+    short = name.split(" (")[0].split(", ")[0].strip()
+    return short[:1].upper() + short[1:]
+
+
+def _tidy_country(name: str) -> str:
+    special = {"D.R.CONGO": "DR Congo", "UNITED ARAB EMIRATES": "UAE", "UNITED KINGDOM": "UK",
+               "UNITED STATES": "USA", "CONGO BR": "Congo (Brazzaville)", "HONG KONG": "Hong Kong"}
+    return special.get(name.upper(), name.title())
+
+
+REGION_NAMES = {
+    "EAC": "East African Community", "REST OF AFRICA": "Rest of Africa", "EUROPEAN UNION": "European Union",
+    "REST OF EUROPE": "Rest of Europe", "ASIA": "Asia", "MIDDLE EAST": "Middle East",
+    "AMERICA": "The Americas", "REST OF THE WORLD": "Rest of the world",
+}
+
+
+def build_trade(records: list[dict]) -> None:
+    def src(title_start):
+        return _dataset(records, title_start)
+
+    s_total, s_ecomp, s_icomp, s_edir, s_idir = (
+        src("Total Monthly Merchandise trade"), src("Composition of Exports"), src("Composition of Imports"),
+        src("Direction of Exports"), src("Direction of Imports"),
+    )
+    monthly = trade.parse_monthly(get_file(s_total["url"]))
+    ecomp = trade.parse_composition(get_file(s_ecomp["url"]), "CY_Export Value Commodity")
+    icomp = trade.parse_composition(get_file(s_icomp["url"]), "CY_Value SITC")
+    edir = trade.parse_direction(get_file(s_edir["url"]), "CY Exports by Destination")
+    idir = trade.parse_direction(get_file(s_idir["url"]), "CY_Imports by Origin")
+    trade.cross_check(monthly, ecomp["total"], ecomp["years"], "exports", "exports")
+    trade.cross_check(monthly, icomp["total"], icomp["years"], "imports", "imports")
+    if ecomp["years"] != icomp["years"]:
+        raise ValueError("trade: export and import year columns differ")
+
+    years = ecomp["years"]
+    m = lambda vals: [round(v / 1000, 1) for v in vals]  # US$ thousands -> millions
+
+    def gold(items, pred):
+        hit = [i for i in items if pred(i)]
+        if len(hit) != 1:
+            raise ValueError(f"trade: expected exactly one gold row, found {len(hit)}")
+        return hit[0]["values"]
+
+    gold_x = gold(ecomp["items"], lambda i: i["name"].lower().startswith("gold"))
+    gold_m = gold(icomp["items"], lambda i: i["code"] == "97")
+
+    def top(items, n, name_fn, key="values"):
+        ranked = sorted(items, key=lambda i: -i[key][-1])
+        return [{"name": name_fn(i["name"]), "values": m(i[key])} for i in ranked[:n] if i[key][-1] > 0]
+
+    exports_products = [i for i in ecomp["items"] if not i["name"].lower().startswith("other")]
+
+    _write("trade.json", {
+        "sources": {k: _src(v) for k, v in
+                    {"monthly": s_total, "export_products": s_ecomp, "import_products": s_icomp,
+                     "destinations": s_edir, "origins": s_idir}.items()},
+        "unit": "US$ million",
+        "monthly": {"months": monthly["months"], "exports": m(monthly["exports"]), "imports": m(monthly["imports"])},
+        "annual": {
+            "years": years,
+            "exports": m(ecomp["total"]),
+            "imports": m(icomp["total"]),
+            "exports_ex_gold": m([t - g for t, g in zip(ecomp["total"], gold_x)]),
+            "imports_ex_gold": m([t - g for t, g in zip(icomp["total"], gold_m)]),
+            "gold_exports": m(gold_x),
+            "gold_imports": m(gold_m),
+        },
+        "export_products": top(exports_products, 15, _tidy_product),
+        "import_products": top([i for i in icomp["items"]], 15, _tidy_product),
+        "destinations": top(edir["countries"], 15, _tidy_country),
+        "origins": top(idir["countries"], 15, _tidy_country),
+        "export_regions": [{"name": REGION_NAMES[r["name"].upper()], "values": m(r["values"])} for r in edir["regions"]],
+        "import_regions": [{"name": REGION_NAMES[r["name"].upper()], "values": m(r["values"])} for r in idir["regions"]],
+        "notes": [
+            f"UBOS's {REGION_NAMES[r['name'].upper()]} import subtotal differs slightly from the sum of its countries in "
+            f"{', '.join(map(str, r['inconsistent_years']))}; country figures are used."
+            for r in idir["regions"] if r["inconsistent_years"]
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
     build_cpi(records)
     build_census()
     build_population(records)
+    build_gdp(records)
+    build_trade(records)
