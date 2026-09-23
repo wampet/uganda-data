@@ -568,6 +568,71 @@ def build_jobs(records: list[dict]) -> None:
     })
 
 
+def build_health(records: list[dict]) -> None:
+    def read(title_start, sheet=None):
+        r = _dataset(records, title_start)
+        path = get_file(r["url"])
+        if sheet == "last":
+            wb = openpyxl.load_workbook(path, read_only=True)
+            sheet = wb.worksheets[-1].title
+        return r, tables.read_grouped(path, sheet)
+
+    def series(t, col=0):
+        # "UDHS 2016" -> "2016", "2000-01" -> "2000-01"
+        return [{"survey": r["label"].replace("UDHS", "").strip(), "value": r["values"][col]} for r in t["rows"]]
+
+    # These four files open on an internal UBOS "indicator list" sheet; the real
+    # table is on the last sheet.
+    s_u5, u5 = read("Trends in under five Mortality rate", "last")
+    s_imr, imr = read("Infant Mortality Rate", "last")
+    s_tfr, tfr = read("Trends in Fertility Rate", "last")
+    s_mat, mat = read("Trends in Maternal Health Care", "last")
+    for name, t, want in (("under-5 mortality", u5, "Values"), ("infant mortality", imr, "Values"), ("fertility", tfr, "Values")):
+        if not t["columns"] or not t["columns"][0].lower().startswith(want.lower()):
+            raise ValueError(f"health: {name} table not where expected (columns {t['columns']})")
+
+    s_stunt, stunt = read("Stuntedness Trends")
+    s_vacc, vacc = read("Basic Vaccinations")
+    s_teen, teen = read("Teenage Child Bearing")
+    s_nets, nets = read("Ownership of treated Mosquitoes")
+    s_hiv, hiv = read("Trends in HIV Testing")
+    s_spend, spend = read("Per capita public health expenditure")
+    s_fac, fac = read("Number of Functional Healthcare facilities")
+    # Listed on ubos.org as "Countrywide TB detection rate", but the file is
+    # "Government of Uganda health sector allocation as percentage of total budget".
+    s_budget, budget = read("Countrywide TB detection rate")
+    if "allocation" not in s_budget["url"].lower():
+        raise ValueError("health: budget-share file no longer points at the allocation table; re-check its contents")
+
+    _write("health.json", {
+        "sources": {k: _src(v) for k, v in {
+            "under5": s_u5, "infant": s_imr, "fertility": s_tfr, "maternal": s_mat, "stunting": s_stunt,
+            "vaccination": s_vacc, "teen": s_teen, "nets": s_nets, "hiv": s_hiv, "spending": s_spend,
+            "facilities": s_fac, "budget": s_budget}.items()},
+        "under5_mortality": series(u5),
+        "infant_mortality": series(imr),
+        "fertility": series(tfr),
+        "maternal": {"surveys": [c.replace("UDHS", "").strip() for c in mat["columns"]],
+                     "rows": [{"name": r["label"], "values": r["values"]} for r in mat["rows"]]},
+        "stunting": series(stunt),
+        "vaccination": series(vacc),
+        "teen_childbearing": series(teen),
+        "mosquito_nets": series(nets),
+        "hiv_testing": {"surveys": [r["label"].replace("UDHS", "").strip() for r in hiv["rows"]],
+                        "male": [r["values"][0] for r in hiv["rows"]], "female": [r["values"][1] for r in hiv["rows"]]},
+        "public_spending_per_person": [{"year": r["label"], "ugx": r["values"][0]} for r in spend["rows"]],
+        "budget_share": [{"year": r["label"], "pct": r["values"][0]} for r in budget["rows"]],
+        "facilities": {"columns": fac["columns"], "rows": [{"year": r["label"], "values": r["values"]} for r in fac["rows"]]},
+        "notes": [
+            "Child mortality, fertility, maternal care, stunting and vaccination come from the Uganda Demographic and Health "
+            "Surveys; the latest in UBOS’s online tables is 2016.",
+            "Four of these UBOS files open on an internal indicator list; the figures are on the last sheet of each file.",
+            "UBOS lists the health budget table under the title “Countrywide TB detection rate”; the file is the health "
+            "sector’s share of the government budget, and is shown as that.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -580,3 +645,4 @@ def build(refresh: bool = False) -> None:
     build_road_safety(records)
     build_education(records)
     build_jobs(records)
+    build_health(records)

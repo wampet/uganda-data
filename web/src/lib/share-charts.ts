@@ -12,6 +12,7 @@ import * as V from './poverty';
 import * as R from './road';
 import * as E from './education';
 import * as J from './jobs';
+import * as H from './health';
 
 export interface SharedChart {
   slug: string;
@@ -288,6 +289,20 @@ export const sharedCharts: SharedChart[] = [
       topic: 'People',
     };
   })(),
+  {
+    slug: 'uganda-child-mortality',
+    title: 'Child deaths in Uganda',
+    subtitle: 'Deaths before age 5 and age 1, per 1,000 live births',
+    description: `Under-5 deaths fell from ${H.under5[0].value} to ${H.under5[H.under5.length - 1].value} per 1,000 births between ${H.under5[0].survey} and ${H.under5[H.under5.length - 1].survey}.`,
+    spec: { kind: 'line', unit: '', digits: 0, x: H.under5.map((d) => d.survey), yMin: 0, series: [
+      { name: 'Before age 5', data: H.under5.map((d) => d.value), color: 1, points: true },
+      { name: 'Before age 1', data: H.under5.map((d) => H.infant.find((i) => i.survey === d.survey)?.value ?? null), color: 2, points: true },
+    ] },
+    height: 400,
+    source: src(H.sources.under5),
+    page: { href: '/people/health/health-in-uganda/', label: 'More on health' },
+    topic: 'People',
+  },
   districtMap('grid', 'grid-electricity-by-district', 'Who has power from the grid?', 'Share of households using grid electricity for lighting.'),
   districtMap('out_of_school', 'children-out-of-school-by-district', 'Children out of school, by district', 'Share of children aged 6–12 not in school.'),
   districtMap('neet', 'youth-not-in-work-or-school-by-district', 'Young people not in work, school or training', 'Share of 18–30 year olds not in employment, education or training.'),

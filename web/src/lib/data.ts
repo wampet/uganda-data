@@ -107,6 +107,13 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
     },
     { ...districtExplorer, href: '/places/districts/?show=neet', title: 'Youth not in work or school, by district' },
   ],
+  health: [
+    {
+      href: '/people/health/health-in-uganda/',
+      title: 'Are Ugandans getting healthier?',
+      blurb: 'Child deaths, fertility, births in health facilities, vaccination, stunting, mosquito nets and health spending.',
+    },
+  ],
   crime: [
     {
       href: '/people/crime/road-safety/',

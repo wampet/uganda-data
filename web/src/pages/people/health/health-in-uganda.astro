@@ -1,0 +1,189 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  budgetShare, censusInsurance, censusNets, facilities, facts, fertility, hiv, infant, maternal, nets, notes, shortSurvey,
+  sources, spending, stunting, teen, under5, vaccination,
+} from '../../../lib/health';
+
+const allFacts = facts();
+const L = <T,>(a: T[]) => a[a.length - 1];
+const u5Surveys = under5.map((d) => d.survey);
+const imrBySurvey = new Map(infant.map((d) => [d.survey, d.value]));
+
+const tiles = [
+  { label: 'Under-5 deaths per 1,000 births', value: `${L(under5).value}`, note: `${L(under5).survey}, down from ${under5[0].value}` },
+  { label: 'Children per woman', value: `${L(fertility).value}`, note: L(fertility).survey },
+  { label: 'Households with a mosquito net', value: `${Math.round(censusNets ?? 0)}%`, note: 'Census 2024' },
+  { label: 'People with health insurance', value: `${(censusInsurance ?? 0).toFixed(1)}%`, note: 'Census 2024' },
+];
+---
+
+<Base
+  title="Health in Uganda"
+  description={`Child deaths in Uganda fell from ${under5[0].value} to ${L(under5).value} per 1,000 births. Fertility, maternal care, vaccination, stunting and health spending.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/people/">People & Society</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/people/health/">Health</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Health · Demographic and Health Surveys, Census 2024, Ministry of Health</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Far fewer Ugandan children die young than a generation ago
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[0]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[1]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="child-deaths"
+        share="uganda-child-mortality"
+        title="Children dying young"
+        subtitle="Deaths per 1,000 live births, by survey"
+        height={320}
+        source={sources.under5}
+        spec={{ kind: 'line', unit: '', digits: 0, x: u5Surveys, yMin: 0, series: [
+          { name: 'Before age 5', data: under5.map((d) => d.value), color: 1, points: true },
+          { name: 'Before age 1', data: u5Surveys.map((s) => imrBySurvey.get(s) ?? null), color: 2, points: true },
+        ] }}
+      />
+      <Chart
+        id="fertility"
+        title="Children per woman"
+        subtitle="Total fertility rate, by survey"
+        height={320}
+        source={sources.fertility}
+        spec={{ kind: 'line', unit: '', digits: 1, x: fertility.map((d) => d.survey), yMin: 0, series: [{ name: 'Children per woman', data: fertility.map((d) => d.value), color: 1, points: true }] }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Mothers and babies</h2>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="maternal"
+          title="Care during pregnancy and birth"
+          subtitle="% of women, by survey"
+          height={300}
+          source={sources.maternal}
+          spec={{ kind: 'line', unit: '%', digits: 0, x: maternal.surveys, yMin: 0, yMax: 100, series: maternal.rows.map((r, i) => ({
+            name: r.name.charAt(0).toUpperCase() + r.name.slice(1).replace('ANC', 'Antenatal care'),
+            data: r.values, color: i + 1, points: true,
+          })) }}
+        />
+        <Chart
+          id="child-health"
+          title="Child growth and vaccination"
+          subtitle="% of young children, by survey"
+          height={300}
+          source={sources.vaccination}
+          spec={{ kind: 'line', unit: '%', digits: 0, x: vaccination.map((d) => d.survey), yMin: 0, series: [
+            { name: 'Fully vaccinated (basic, 12–23 months)', data: vaccination.map((d) => d.value), color: 1, points: true },
+            { name: 'Stunted (under 5)', data: vaccination.map((d) => stunting.find((s) => s.survey === d.survey)?.value ?? null), color: 2, points: true },
+          ] }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="nets"
+        title="Households with a treated mosquito net"
+        subtitle={`% of households, by survey. The 2024 census, which counts any net, found ${Math.round(censusNets ?? 0)}%`}
+        height={300}
+        source={sources.nets}
+        spec={{ kind: 'line', unit: '%', digits: 0, x: nets.map((d) => shortSurvey(d.survey)), yMin: 0, yMax: 100, series: [{ name: 'Households with a net', data: nets.map((d) => d.value), color: 1, points: true }] }}
+      />
+      <Chart
+        id="hiv"
+        title="HIV testing"
+        subtitle="% of adults tested for HIV who received their result (survey measure), by survey"
+        height={300}
+        source={sources.hiv}
+        spec={{ kind: 'line', unit: '%', digits: 0, x: hiv.surveys, yMin: 0, series: [
+          { name: 'Women', data: hiv.female, color: 2, points: true },
+          { name: 'Men', data: hiv.male, color: 1, points: true },
+        ] }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Paying for health</h2>
+      <div class="mt-4 grid gap-4 lg:grid-cols-3">
+        <Chart
+          id="spending"
+          title="Public health spending per person"
+          subtitle="UGX per person per year"
+          height={280}
+          source={sources.spending}
+          spec={{ kind: 'line', unit: '', digits: 0, x: spending.map((d) => d.year), yMin: 0, series: [{ name: 'UGX per person', data: spending.map((d) => d.ugx), color: 1, points: true }] }}
+        />
+        <Chart
+          id="budget-share"
+          title="Health’s share of the government budget"
+          subtitle="%, by financial year"
+          height={280}
+          source={sources.budget}
+          spec={{ kind: 'line', unit: '%', digits: 1, x: budgetShare.map((d) => d.year), yMin: 0, series: [{ name: 'Share of budget', data: budgetShare.map((d) => d.pct), color: 1, points: true }] }}
+        />
+        <Chart
+          id="facilities"
+          title="Health facilities by owner"
+          subtitle="Functional facilities, by financial year"
+          height={280}
+          source={sources.facilities}
+          spec={{ kind: 'line', unit: '', digits: 0, x: facilities.rows.map((r) => r.year), yMin: 0, series: facilities.columns.map((c, i) => ({ name: c, data: facilities.rows.map((r) => r.values[i]), color: i + 1, points: true })) }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+          <li>Private health facility counts swing a lot between years, which likely reflects how facilities were recorded as much as real openings and closures.</li>
+          <li>Teenage childbearing: {L(teen).value}% of girls aged 15–19 had begun childbearing in {L(teen).survey}.</li>
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 1;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>
