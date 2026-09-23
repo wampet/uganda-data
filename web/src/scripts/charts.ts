@@ -65,49 +65,89 @@ function baseOption() {
   };
 }
 
+/** Compact axis numbers: 12,000,000 -> 12M, 450,000 -> 450K. */
+function compact(v: number) {
+  const a = Math.abs(v);
+  if (a >= 1e6) return `${+(v / 1e6).toFixed(a >= 1e7 ? 0 : 1)}M`;
+  if (a >= 1e3) return `${+(v / 1e3).toFixed(0)}K`;
+  return String(v);
+}
+
 function lineOption(spec: ChartSpec, extra?: ChartSeries) {
   const x = spec.x ?? [];
+  const numeric = !!spec.xNumeric;
   const series = extra ? [...spec.series, extra] : [...spec.series];
   const colors = series.map((s) => slot(s.color ?? 1));
+  const valueOf = (p: any) => (Array.isArray(p.value) ? p.value[1] : p.value);
+  const xLabel = (v: string | number) => (numeric ? String(Math.round(Number(v))) : monthLabel(String(v)));
+  const big = spec.series.some((s) => s.data.some((v) => v != null && Math.abs(v) >= 1e5));
+  // Numeric year axis: pick a round step from the span and snap both ends to it,
+  // so every tick is evenly spaced (no stray labels at the data's first/last year).
+  const xNums = numeric ? x.map(Number) : [];
+  const span = numeric ? Math.max(...xNums) - Math.min(...xNums) : 0;
+  const step = span > 150 ? 50 : span > 60 ? 20 : span > 25 ? 10 : 5;
+  const xMin = numeric ? Math.floor(Math.min(...xNums) / step) * step : 0;
+  const xMax = numeric ? Math.ceil(Math.max(...xNums) / step) * step : 0;
 
   return {
     ...baseOption(),
-    grid: { left: 8, right: 52, top: 16, bottom: 8, containLabel: true },
+    grid: { left: 8, right: 52, top: 16, bottom: 8 },
     tooltip: {
       ...baseOption().tooltip,
       trigger: 'axis',
       axisPointer: { type: 'line', lineStyle: { color: css('--axis'), width: 1 } },
-      formatter: (params: any[]) =>
-        tooltipBox(
-          monthLabel(x[params[0].dataIndex]),
-          params.map((p) => ({ color: colors[p.seriesIndex], name: series[p.seriesIndex].name, value: fmt(p.value, spec) })),
-        ),
+      formatter: (params: any[]) => {
+        const shown = params.filter((p) => valueOf(p) != null);
+        if (!shown.length) return '';
+        const title = numeric ? xLabel(params[0].axisValue) : monthLabel(String(x[params[0].dataIndex]));
+        return tooltipBox(
+          title,
+          shown.map((p) => ({ color: colors[p.seriesIndex], name: series[p.seriesIndex].name, value: fmt(valueOf(p), spec) })),
+        );
+      },
     },
-    dataZoom: [{ type: 'inside', startValue: spec.startIndex ?? 0, endValue: x.length - 1, zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false }],
-    xAxis: {
-      type: 'category',
-      data: x,
-      boundaryGap: false,
-      axisLine: { lineStyle: { color: css('--axis') } },
-      axisTick: { show: false },
-      axisLabel: { color: css('--ink-3'), formatter: (v: string) => monthLabel(v), hideOverlap: true },
-    },
+    dataZoom: numeric
+      ? []
+      : [{ type: 'inside', startValue: spec.startIndex ?? 0, endValue: x.length - 1, zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false }],
+    xAxis: numeric
+      ? {
+          type: 'value',
+          min: xMin,
+          max: xMax,
+          interval: step,
+          splitLine: { show: false },
+          axisLine: { show: true, lineStyle: { color: css('--axis') } },
+          axisTick: { show: false },
+          axisLabel: { color: css('--ink-3'), formatter: xLabel, hideOverlap: true },
+        }
+      : {
+          type: 'category',
+          data: x,
+          boundaryGap: false,
+          axisLine: { lineStyle: { color: css('--axis') } },
+          axisTick: { show: false },
+          axisLabel: { color: css('--ink-3'), formatter: xLabel, hideOverlap: true },
+        },
     yAxis: {
       type: 'value',
+      min: spec.yMin,
+      max: spec.yMax,
       splitLine: { lineStyle: { color: css('--grid') } },
-      axisLabel: { color: css('--ink-3'), formatter: (v: number) => `${v}${spec.unit ?? ''}` },
+      axisLabel: { color: css('--ink-3'), formatter: (v: number) => (big ? compact(v) : `${v}${spec.unit ?? ''}`) },
     },
     series: series.map((s, i) => ({
       name: s.name,
       type: 'line',
-      data: s.data,
-      showSymbol: false,
+      data: numeric ? s.data.map((v, j) => [x[j], v]).filter(([, v]) => v != null) : s.data,
+      showSymbol: !!s.points,
+      symbol: 'circle',
       symbolSize: 8,
-      connectNulls: false,
-      lineStyle: { width: 2, color: colors[i] },
+      connectNulls: numeric,
+      lineStyle: { width: 2, color: colors[i], type: s.dashed ? [6, 4] : 'solid' },
       itemStyle: { color: colors[i], borderColor: css('--surface'), borderWidth: 2 },
       areaStyle: i === 0 && spec.area ? { color: colors[i], opacity: 0.1 } : undefined,
       emphasis: { disabled: true },
+      z: s.points ? 3 : 2,
       markLine:
         i === 0 && spec.zeroLine
           ? { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: css('--axis'), type: 'solid', width: 1 }, data: [{ yAxis: 0 }] }
@@ -116,11 +156,85 @@ function lineOption(spec: ChartSpec, extra?: ChartSeries) {
       // (muted context lines stay unlabelled so end labels don't collide).
       endLabel: {
         show: s.color !== 'muted',
-        formatter: (p: any) => fmt(p.value, spec),
+        formatter: (p: any) => {
+          const v = valueOf(p);
+          return big && v != null ? compact(v) : fmt(v, spec);
+        },
         color: css('--ink'),
         fontWeight: 600,
       },
     })),
+  };
+}
+
+function pyramidOption(spec: ChartSpec) {
+  const p = spec.pyramid!;
+  const y = p.yearIndex;
+  const male = p.male.map((row) => -row[y]);
+  const female = p.female.map((row) => row[y]);
+  const ghost = p.ghostIndex != null && p.ghostIndex !== y ? p.ghostIndex : null;
+  const maxAbs = Math.max(...p.male.flat(), ...p.female.flat());
+  const cM = slot(1);
+  const cF = slot(2);
+  const cG = css('--muted-series');
+  const bar = (name: string, data: number[], color: string, extra: object = {}) => ({
+    name,
+    type: 'bar',
+    stack: undefined,
+    barWidth: '72%',
+    barGap: '-100%',
+    data: data.map((v) => ({ value: v, itemStyle: { color, borderRadius: v < 0 ? [4, 0, 0, 4] : [0, 4, 4, 0] } })),
+    emphasis: { itemStyle: { opacity: 0.85 } },
+    animationDurationUpdate: 350,
+    ...extra,
+  });
+
+  const series: object[] = [];
+  if (ghost != null) {
+    // Muted outline of the comparison year behind the current bars.
+    const gy = ghost;
+    series.push(
+      bar(`${p.years[gy]}`, p.male.map((r) => -r[gy]), cG, { silent: true, z: 1, itemStyle: { opacity: 0.6 } }),
+      bar(`${p.years[gy]} `, p.female.map((r) => r[gy]), cG, { silent: true, z: 1, itemStyle: { opacity: 0.6 } }),
+    );
+  }
+  series.push(bar('Male', male, cM, { z: 2 }), bar('Female', female, cF, { z: 2 }));
+
+  return {
+    ...baseOption(),
+    animationDurationUpdate: 350,
+    grid: [{ left: 8, right: 8, top: 8, bottom: 8 }],
+    tooltip: {
+      ...baseOption().tooltip,
+      trigger: 'axis',
+      axisPointer: { type: 'shadow', shadowStyle: { color: css('--surface-2'), opacity: 0.6 } },
+      formatter: (params: any[]) => {
+        const i = params[0].dataIndex;
+        const rows = [
+          { color: cM, name: 'Male', value: Math.abs(male[i]).toLocaleString('en-UG') },
+          { color: cF, name: 'Female', value: female[i].toLocaleString('en-UG') },
+        ];
+        if (ghost != null) {
+          rows.push({ color: cG, name: `Both sexes in ${p.years[ghost]}`, value: (p.male[i][ghost] + p.female[i][ghost]).toLocaleString('en-UG') });
+        }
+        return tooltipBox(`Age ${p.bands[i]} · ${p.years[y]}`, rows);
+      },
+    },
+    xAxis: {
+      type: 'value',
+      min: -maxAbs * 1.05,
+      max: maxAbs * 1.05,
+      splitLine: { lineStyle: { color: css('--grid') } },
+      axisLabel: { color: css('--ink-3'), formatter: (v: number) => compact(Math.abs(v)) },
+    },
+    yAxis: {
+      type: 'category',
+      data: p.bands,
+      axisLine: { lineStyle: { color: css('--axis') } },
+      axisTick: { show: false },
+      axisLabel: { color: css('--ink-2') },
+    },
+    series,
   };
 }
 
@@ -132,7 +246,7 @@ function barOption(spec: ChartSpec, selected?: string) {
   const clickable = !!spec.selectTarget;
   return {
     ...baseOption(),
-    grid: { left: 8, right: 56, top: 4, bottom: 4, containLabel: true },
+    grid: { left: 8, right: 56, top: 4, bottom: 4 },
     tooltip: {
       ...baseOption().tooltip,
       trigger: 'item',
@@ -304,7 +418,13 @@ function render(el: HTMLElement) {
   if (!entry) return;
   const { chart, spec, selected, extra } = entry;
   const option =
-    spec.kind === 'map' ? mapOption(spec) : spec.kind === 'bar' ? barOption(spec, selected) : lineOption(spec, extra);
+    spec.kind === 'map'
+      ? mapOption(spec)
+      : spec.kind === 'pyramid'
+        ? pyramidOption(spec)
+        : spec.kind === 'bar'
+          ? barOption(spec, selected)
+          : lineOption(spec, extra);
   chart.setOption(option as any, { notMerge: true });
 }
 
@@ -313,17 +433,27 @@ function renderTable(el: HTMLElement) {
   const { spec } = instances.get(el)!;
   const tbody = el.querySelector('tbody');
   if (!tbody || spec.kind === 'line') return;
-  const rows: [string, number | null][] =
-    spec.kind === 'map'
-      ? Object.entries(spec.map!.values)
-          .map(([c, v]) => [spec.map!.names[c] ?? c, v] as [string, number | null])
-          .sort((a, b) => (b[1] ?? -Infinity) - (a[1] ?? -Infinity))
-      : (spec.categories ?? []).map((c, i) => [c, spec.series[0].data[i]]);
+  const num = (v: number | null) => fmt(v, spec);
+  let rows: string[][];
+  if (spec.kind === 'pyramid') {
+    const p = spec.pyramid!;
+    const y = p.yearIndex;
+    const n = (v: number) => v.toLocaleString('en-UG');
+    rows = p.bands.map((b, i) => [b, n(p.male[i][y]), n(p.female[i][y])]).reverse();
+    const cap = el.querySelector('[data-table-caption]');
+    if (cap) cap.textContent = String(p.years[y]);
+  } else if (spec.kind === 'map') {
+    rows = Object.entries(spec.map!.values)
+      .sort(([, a], [, b]) => (b ?? -Infinity) - (a ?? -Infinity))
+      .map(([c, v]) => [spec.map!.names[c] ?? c, num(v)]);
+  } else {
+    rows = (spec.categories ?? []).map((c, i) => [c, num(spec.series[0].data[i])]);
+  }
   tbody.replaceChildren(
-    ...rows.map(([name, v]) => {
+    ...rows.map((cells) => {
       const tr = document.createElement('tr');
       tr.className = 'border-t border-line';
-      for (const text of [name, fmt(v, spec)]) {
+      for (const text of cells) {
         const td = document.createElement('td');
         td.className = 'px-3 py-1';
         td.textContent = text;
@@ -339,7 +469,12 @@ async function update(el: HTMLElement, patch: Partial<ChartSpec> & { title?: str
   await mount(el);
   const entry = instances.get(el)!;
   const { title, subtitle, ...specPatch } = patch;
-  entry.spec = { ...entry.spec, ...specPatch, map: specPatch.map ? { ...entry.spec.map!, ...specPatch.map } : entry.spec.map };
+  entry.spec = {
+    ...entry.spec,
+    ...specPatch,
+    map: specPatch.map ? { ...entry.spec.map!, ...specPatch.map } : entry.spec.map,
+    pyramid: specPatch.pyramid ? { ...entry.spec.pyramid!, ...specPatch.pyramid } : entry.spec.pyramid,
+  };
   render(el);
   renderTable(el);
   if (title != null) el.querySelector('[data-title]')!.textContent = title;

@@ -5,6 +5,23 @@ export interface ChartSeries {
   data: (number | null)[];
   /** Categorical palette slot 1-8 (fixed order), or 'muted' for context lines. */
   color?: number | 'muted';
+  /** dashed line: reserved for projections / estimates, never for gridlines */
+  dashed?: boolean;
+  /** draw a marker at every data point (sparse series, e.g. census years) */
+  points?: boolean;
+}
+
+export interface PyramidSpec {
+  years: number[];
+  /** age bands, youngest first */
+  bands: string[];
+  /** [band][year] */
+  male: number[][];
+  female: number[][];
+  /** index into years currently shown */
+  yearIndex: number;
+  /** index of a year drawn as a muted "ghost" behind, for comparison */
+  ghostIndex?: number;
 }
 
 export interface MapSpec {
@@ -28,12 +45,18 @@ export interface MapSpec {
 }
 
 export interface ChartSpec {
-  kind: 'line' | 'bar' | 'map';
+  kind: 'line' | 'bar' | 'map' | 'pyramid';
   map?: MapSpec;
+  pyramid?: PyramidSpec;
+  /** line: x values are numbers on a true linear axis (e.g. uneven census years) instead of monthly YYYY-MM categories */
+  xNumeric?: boolean;
+  /** line: fixed y-axis range */
+  yMin?: number;
+  yMax?: number;
   unit?: string;
   digits?: number;
-  /** line: x values as YYYY-MM */
-  x?: string[];
+  /** line: x values as YYYY-MM, or numbers when xNumeric */
+  x?: (string | number)[];
   /** line: first visible index (the range buttons change it) */
   startIndex?: number;
   area?: boolean;

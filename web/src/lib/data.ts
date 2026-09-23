@@ -43,7 +43,14 @@ const districtExplorer = {
 
 export const featured: Record<string, { href: string; title: string; blurb: string }[]> = {
   'admin-units': [districtExplorer],
-  population: [districtExplorer],
+  population: [
+    {
+      href: '/people/population/age-and-growth/',
+      title: 'How old is Uganda, and how fast is it growing?',
+      blurb: 'An animated population pyramid to 2050, census counts since 1911, and life expectancy.',
+    },
+    districtExplorer,
+  ],
   education: [{ ...districtExplorer, href: '/places/districts/?show=out_of_school', title: 'Children out of school, by district' }],
   jobs: [{ ...districtExplorer, href: '/places/districts/?show=neet', title: 'Youth not in work or school, by district' }],
   prices: [
