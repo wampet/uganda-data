@@ -410,6 +410,85 @@ def build_road_safety(records: list[dict]) -> None:
     })
 
 
+def build_education(records: list[dict]) -> None:
+    def rows_of(r):
+        wb = openpyxl.load_workbook(get_file(r["url"]), data_only=True, read_only=True)
+        return [list(x) for x in wb.worksheets[0].iter_rows(values_only=True)]
+
+    def read(title_start):
+        r = _dataset(records, title_start)
+        return r, tables.read_grouped(get_file(r["url"]))
+
+    # Literacy: MALE / FEMALE / TOTAL blocks of year rows. UBOS's 2024 by-sex
+    # cells are misaligned (the male block repeats the total, a stray value sits
+    # on the FEMALE heading), so only the unambiguous 2024 total is used.
+    s_lit = _dataset(records, "Literacy Rate for population aged 10 years and above by residence")
+    blocks, cur = {}, None
+    for r in rows_of(s_lit):
+        lab = " ".join(str(r[0]).split()) if r[0] is not None else ""
+        if lab.upper() in ("MALE", "FEMALE", "TOTAL"):
+            cur = lab.title()
+            blocks[cur] = []
+            continue
+        if cur and lab and not lab.lower().startswith("source") and isinstance(r[3], int | float):
+            blocks[cur].append({"year": lab, "urban": r[1], "rural": r[2], "total": r[3]})
+    for sex in ("Male", "Female"):
+        blocks[sex] = [x for x in blocks[sex] if x["year"] != "2024"]
+    if not blocks.get("Total") or blocks["Total"][-1]["year"] != "2024":
+        raise ValueError("education: literacy total for 2024 not found where expected")
+
+    s_ple, ple = read("Primary Leaving Examination indicators 2023")
+    num = lambda label: tables.pick(ple, label)[ple["columns"].index("Numbers")]
+    divisions = [{"name": d, "candidates": num(d)} for d in ("DIV I", "DIV II", "DIV III", "DIV IV", "DIV U")]
+    sat = num("Pupils Who Sat for PLE")
+    if abs(sum(d["candidates"] for d in divisions) - sat) / sat > 0.01:
+        raise ValueError("education: PLE divisions don't add up to candidates who sat")
+
+    s_uce, uce = read("UCE Registration over the Last Five Years")
+    uce_rows = sorted(({"year": int(r["label"]), "registered": r["values"][0], "sat": r["values"][1]} for r in uce["rows"]),
+                      key=lambda x: x["year"])
+
+    # UACE: years sit on the row above "Number of candidates | percentage".
+    s_uace = _dataset(records, "General UACE Performance in 2023")
+    urows = rows_of(s_uace)
+    hi = next(i for i, r in enumerate(urows) if r[0] and str(r[0]).strip().lower() == "pass level")
+    year_cols = [(j, int(v)) for j, v in enumerate(urows[hi - 1]) if isinstance(v, int | float)]
+    uace = {y: [] for _, y in year_cols}
+    for r in urows[hi + 1 :]:
+        lab = str(r[0]).strip() if r[0] else ""
+        if not lab or lab.lower() in ("total",) or lab.lower().startswith("source"):
+            continue
+        for j, y in year_cols:
+            uace[y].append({"grade": lab, "candidates": r[j], "pct": r[j + 1]})
+
+    s_p7, p7 = read("P.7 completion and Transition rates")
+    s_s4, s4 = read("S4 completion and Transition rates")
+    s_nape, nape = read("NAPE Competence Scores for Primary by class")
+
+    def grouped_total(t):
+        return [{"name": r["group"].rstrip("*").strip(), "values": r["values"]} for r in t["rows"] if r["label"] == "Total"]
+
+    _write("education.json", {
+        "sources": {k: _src(v) for k, v in {
+            "literacy": s_lit, "ple": s_ple, "uce": s_uce, "uace": s_uace, "p7": s_p7, "s4": s_s4, "nape": s_nape}.items()},
+        "literacy": blocks,
+        "ple_2023": {"registered": num("Pupils who registered"), "sat": sat, "passed": num("Pupils who passed PLE"),
+                     "divisions": divisions, "pass_rate": tables.pick(ple, "Pass Rate (Percent)")[ple["columns"].index("Numbers")]},
+        "uce": uce_rows,
+        "uace": {str(y): v for y, v in uace.items()},
+        "progression": {"years": p7["columns"], "rates": grouped_total(p7) + grouped_total(s4)},
+        "nape": {"years": nape["columns"], "rows": [{"name": r["group"], "values": r["values"]} for r in nape["rows"] if r["label"] == "Total"]},
+        "notes": [
+            "UBOS’s files “Primary school enrolment by class and sex 2011–2017” and “Secondary school enrolment…” "
+            "currently contain the NAPE test-score table instead of enrolment, so enrolment by class is not shown.",
+            "UBOS’s “Key Primary Education Indicators, 2013–2017” file contains pre-primary (nursery) figures, so it is not used.",
+            "The 2024 literacy figure comes from the census; earlier figures come from household surveys, so small changes between them may reflect method rather than a real change.",
+            "UBOS’s 2024 literacy figures by sex are misaligned in the source table, so only the overall 2024 figure is shown.",
+            "In the PLE 2023 table the percentage column is 100 for every row, so we use the candidate numbers.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -420,3 +499,4 @@ def build(refresh: bool = False) -> None:
     build_trade(records)
     build_poverty(records)
     build_road_safety(records)
+    build_education(records)

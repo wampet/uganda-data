@@ -1,0 +1,167 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  facts, literacy, literacyLatest, nape, notes, outOfSchool, ple, pleShare, progression, progressionYear, sources, uace,
+  uaceYears, uce,
+} from '../../../lib/education';
+
+const allFacts = facts();
+const litYears = literacy.Total.map((r) => r.year);
+const bySex = (rows: typeof literacy.Male) => litYears.map((y) => rows.find((r) => r.year === y)?.total ?? null);
+const napeNames: Record<string, string> = {
+  'Competence in Literacy at P.3': 'Reading, P.3',
+  'Competence in Numeracy at P.3': 'Maths, P.3',
+  'Competence in Literacy at P.6': 'Reading, P.6',
+  'Competence in Numeracy at P.6': 'Maths, P.6',
+};
+const latestUace = uaceYears[uaceYears.length - 1];
+const prevUace = uaceYears.length > 1 ? uaceYears[uaceYears.length - 2] : null;
+const threeP = (y: string) => uace[y].find((g) => g.grade === '3P')?.pct;
+const direction = prevUace && (threeP(latestUace) ?? 0) >= (threeP(prevUace) ?? 0) ? 'up from' : 'down from';
+const uaceSubtitle = prevUace
+  ? `% of candidates by number of principal passes (3 passes: ${threeP(latestUace)}%, ${direction} ${threeP(prevUace)}% in ${prevUace})`
+  : '% of candidates by number of principal passes';
+const divLabels: Record<string, string> = { 'DIV I': 'Division I', 'DIV II': 'Division II', 'DIV III': 'Division III', 'DIV IV': 'Division IV', 'DIV U': 'Ungraded (U)' };
+
+const tiles = [
+  { label: 'Children 6–12 out of school', value: `${Math.round(outOfSchool.primary ?? 0)}%`, note: 'Census 2024' },
+  { label: 'Teens 13–17 out of school', value: `${Math.round(outOfSchool.teens ?? 0)}%`, note: 'Census 2024' },
+  { label: 'Literacy, age 10+', value: `${literacyLatest.total}%`, note: literacyLatest.year },
+  { label: 'PLE Division I, 2023', value: `${pleShare('DIV I').toFixed(0)}%`, note: `of ${ple.sat.toLocaleString()} candidates` },
+];
+---
+
+<Base
+  title="Education in Uganda"
+  description={`${Math.round(outOfSchool.primary ?? 0)}% of children aged 6–12 were out of school in 2024. Literacy, PLE, UCE and UACE results, and how many children finish school.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/people/">People & Society</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/people/education/">Education</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Education · UBOS, UNEB and Ministry of Education data</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          1 in 4 primary-age children is not in school
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[0]} <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/places/districts/?show=out_of_school">See every district on the map →</a></p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[1]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="ple"
+        share="ple-results-2023"
+        title="PLE results, 2023"
+        subtitle="Candidates by division"
+        height={300}
+        source={sources.ple}
+        spec={{ kind: 'bar', unit: '', digits: 0, categories: ple.divisions.map((d) => divLabels[d.name] ?? d.name), series: [{ name: 'Candidates', data: ple.divisions.map((d) => d.candidates) }], labelWidth: 110 }}
+      />
+      <Chart
+        id="literacy"
+        title="Who can read and write?"
+        subtitle="% of people aged 10 and over"
+        height={300}
+        source={sources.literacy}
+        spec={{ kind: 'line', unit: '%', digits: 0, x: litYears, series: [
+          { name: 'Men', data: bySex(literacy.Male), color: 1, points: true },
+          { name: 'Women', data: bySex(literacy.Female), color: 2, points: true },
+          { name: 'Everyone', data: literacy.Total.map((r) => r.total), color: 'muted', points: true },
+        ] }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">How far do children get?</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">
+        Completion rates compare the number of pupils finishing a class with the number of children of that age. These are
+        the latest UBOS figures, from {progressionYear}.
+      </p>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="progression"
+          title="Finishing primary and secondary school"
+          subtitle={`Completion and transition rates, %, ${progression.years[0]}–${progressionYear}`}
+          height={320}
+          source={sources.p7}
+          spec={{ kind: 'line', unit: '%', digits: 0, x: progression.years, yMin: 0, series: progression.rates.map((r, i) => ({ name: r.name.replace('Senior 4', 'S.4'), data: r.values, color: i + 1, points: true })) }}
+        />
+        <Chart
+          id="nape"
+          title="Are children learning?"
+          subtitle={`% of pupils at the expected level (NAPE tests), ${nape.years[0]}–${nape.years[nape.years.length - 1]}`}
+          height={320}
+          source={sources.nape}
+          spec={{ kind: 'line', unit: '%', digits: 0, x: nape.years, yMin: 0, yMax: 100, series: nape.rows.map((r, i) => ({ name: napeNames[r.name] ?? r.name, data: r.values, color: i + 1, points: true })) }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="uce"
+        title="Students sitting UCE (S.4)"
+        subtitle="Candidates who sat the exam (no 2021 exam listed)"
+        height={300}
+        source={sources.uce}
+        spec={{ kind: 'line', unit: '', digits: 0, x: uce.map((u) => u.year), xNumeric: true, series: [{ name: 'Sat UCE', data: uce.map((u) => u.sat), color: 1, points: true }] }}
+      />
+      <Chart
+        id="uace"
+        title={`UACE (S.6) results, ${latestUace}`}
+        subtitle={uaceSubtitle}
+        height={300}
+        source={sources.uace}
+        spec={{ kind: 'bar', unit: '%', categories: uace[latestUace].map((g) => g.grade), series: [{ name: '% of candidates', data: uace[latestUace].map((g) => g.pct) }], labelWidth: 50 }}
+      />
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+          <li>Several of UBOS’s education tables stop at 2017. They are shown with their years so you can judge how current they are.</li>
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 1;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>

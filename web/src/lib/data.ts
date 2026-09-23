@@ -91,7 +91,14 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
     },
     districtExplorer,
   ],
-  education: [{ ...districtExplorer, href: '/places/districts/?show=out_of_school', title: 'Children out of school, by district' }],
+  education: [
+    {
+      href: '/people/education/learning-in-uganda/',
+      title: 'Are Uganda’s children in school, and learning?',
+      blurb: 'Out-of-school children, literacy, PLE, UCE and UACE results, completion rates and test scores.',
+    },
+    { ...districtExplorer, href: '/places/districts/?show=out_of_school', title: 'Children out of school, by district' },
+  ],
   jobs: [{ ...districtExplorer, href: '/places/districts/?show=neet', title: 'Youth not in work or school, by district' }],
   crime: [
     {

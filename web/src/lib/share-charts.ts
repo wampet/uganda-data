@@ -10,6 +10,7 @@ import * as P from './population';
 import * as D from './census';
 import * as V from './poverty';
 import * as R from './road';
+import * as E from './education';
 
 export interface SharedChart {
   slug: string;
@@ -254,6 +255,17 @@ export const sharedCharts: SharedChart[] = [
     height: 460,
     source: src(R.sources.time),
     page: { href: '/people/crime/road-safety/', label: 'More on road safety' },
+    topic: 'People',
+  },
+  {
+    slug: 'ple-results-2023',
+    title: 'PLE results, 2023',
+    subtitle: 'Primary Leaving Examination candidates by division',
+    description: `${E.ple.sat.toLocaleString()} pupils sat PLE in 2023: ${E.pleShare('DIV I').toFixed(0)}% got Division I and ${E.pleShare('DIV U').toFixed(0)}% were ungraded.`,
+    spec: { kind: 'bar', unit: '', digits: 0, categories: E.ple.divisions.map((d) => d.name.replace('DIV', 'Division').replace('Division U', 'Ungraded (U)')), series: [{ name: 'Candidates', data: E.ple.divisions.map((d) => d.candidates) }], labelWidth: 130 },
+    height: 360,
+    source: src(E.sources.ple),
+    page: { href: '/people/education/learning-in-uganda/', label: 'More on education' },
     topic: 'People',
   },
   districtMap('grid', 'grid-electricity-by-district', 'Who has power from the grid?', 'Share of households using grid electricity for lighting.'),
