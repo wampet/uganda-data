@@ -334,6 +334,82 @@ def build_poverty(records: list[dict]) -> None:
     })
 
 
+def build_road_safety(records: list[dict]) -> None:
+    def read(title_start):
+        r = _dataset(records, title_start)
+        return r, tables.read_grouped(get_file(r["url"]))
+
+    s_crash, crash = read("Reported road traffic crashes by outcome of crash")
+    s_cas, cas = read("Number of Road Traffic Casualties by Outcome of Crash")
+    s_veh, veh = read("Number of Road Accidents by Type of Vehicles")
+    s_time, tod = read("Number of Crashes by Time of Occurrence")
+    s_user, users = read("Number of Accident Victims by Road User Type")
+    s_reg, reg = read("Accident distribution by region")
+
+    years = [y for y in crash["columns"] if y.isdigit()]
+    n = len(years)
+    row = lambda t, label: tables.pick(t, label)[:n]
+
+    def check_sum(name, parts: list[list], total: list, tol=0.01):
+        for i, y in enumerate(years[: len(total)]):
+            s = sum((p[i] or 0) for p in parts)
+            if total[i] and abs(s - total[i]) / total[i] > tol:
+                raise ValueError(f"road: {name} parts sum {s:,.0f} != total {total[i]:,.0f} in {y}")
+
+    crash_rows = {k: row(crash, k) for k in ("Fatal", "Serious", "Minor")}
+    crash_total = row(crash, "Total")
+    check_sum("crash outcomes", list(crash_rows.values()), crash_total)
+
+    if [c for c in cas["columns"] if c.isdigit()] != years:
+        raise ValueError("road: casualty and crash tables cover different years")
+    killed, serious, slight = row(cas, "Killed"), row(cas, "Seriously injured"), row(cas, "Slightly injured")
+    cas_total = row(cas, "Total")
+    check_sum("casualties", [killed, serious, slight], cas_total)
+    severity = row(cas, "Accident Severity Index")
+
+    # Victims by road user type must add up to the casualty total from the other table.
+    user_rows = [r for r in users["rows"] if r["label"].lower() != "total"]
+    check_sum("victims by road user (vs casualty table)", [r["values"][:n] for r in user_rows], cas_total)
+
+    veh_rows = [r for r in veh["rows"] if r["label"].lower() != "total"]
+    check_sum("vehicles", [r["values"][:n] for r in veh_rows], row(veh, "Total"))
+
+    # 2023-only tables: regions and time of day, each checked against 2023 crashes.
+    latest_crashes = crash_total[-1]
+    reg_rows = [r for r in reg["rows"] if r["label"].lower() != "total"]
+    reg_total = sum(r["values"][reg["columns"].index("Total")] or 0 for r in reg_rows)
+    if abs(reg_total - latest_crashes) / latest_crashes > 0.02:
+        raise ValueError(f"road: regions sum {reg_total:,.0f} != {years[-1]} crashes {latest_crashes:,.0f}")
+    tod_total = sum(r["values"][0] or 0 for r in tod["rows"])
+    if abs(tod_total - latest_crashes) / latest_crashes > 0.02:
+        raise ValueError(f"road: time-of-day sum {tod_total:,.0f} != {years[-1]} crashes {latest_crashes:,.0f}")
+
+    fi = reg["columns"].index("Fatal")
+    ti = reg["columns"].index("Total")
+    clean = lambda s: s.rstrip("*").strip()
+    _write("road_safety.json", {
+        "sources": {k: _src(v) for k, v in {
+            "crashes": s_crash, "casualties": s_cas, "vehicles": s_veh, "time": s_time,
+            "road_users": s_user, "regions": s_reg}.items()},
+        "years": [int(y) for y in years],
+        "crashes": {k.lower(): v for k, v in crash_rows.items()} | {"total": crash_total},
+        "casualties": {"killed": killed, "seriously_injured": serious, "slightly_injured": slight, "total": cas_total},
+        "severity_index": severity,
+        "road_users": [{"name": clean(r["label"]), "values": r["values"][:n]} for r in user_rows],
+        "vehicles": [{"name": r["label"], "values": r["values"][:n]} for r in veh_rows],
+        # Police report 2am-4am etc.; store in clock order.
+        "time_of_day": sorted(({"slot": r["label"], "crashes": r["values"][0]} for r in tod["rows"]), key=lambda x: x["slot"]),
+        "regions": sorted(
+            ({"name": r["label"], "fatal": r["values"][fi], "total": r["values"][ti]} for r in reg_rows),
+            key=lambda x: -(x["total"] or 0),
+        ),
+        "notes": [
+            "Figures are crashes and casualties reported to the Uganda Police Force; unreported crashes are not counted.",
+            "“Victims by road user type” counts everyone killed or injured, not deaths only.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -343,3 +419,4 @@ def build(refresh: bool = False) -> None:
     build_gdp(records)
     build_trade(records)
     build_poverty(records)
+    build_road_safety(records)

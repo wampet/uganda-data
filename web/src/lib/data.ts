@@ -56,6 +56,13 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
   ],
   education: [{ ...districtExplorer, href: '/places/districts/?show=out_of_school', title: 'Children out of school, by district' }],
   jobs: [{ ...districtExplorer, href: '/places/districts/?show=neet', title: 'Youth not in work or school, by district' }],
+  crime: [
+    {
+      href: '/people/crime/road-safety/',
+      title: 'How dangerous are Uganda’s roads?',
+      blurb: 'Road deaths and injuries since 2019: who gets hurt, which vehicles, what time of day, and where crashes are deadliest.',
+    },
+  ],
   poverty: [
     {
       href: '/people/poverty/poverty-in-uganda/',

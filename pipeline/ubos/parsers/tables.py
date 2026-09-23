@@ -35,21 +35,35 @@ def read_grouped(path, sheet: str | None = None) -> dict:
     ws = wb[sheet] if sheet else wb.worksheets[0]
     rows = [list(r) for r in ws.iter_rows(values_only=True)]
 
+    def is_year_header(r):
+        # "Outcome | 2019 | 2020 | ..." has numeric cells too; years are whole,
+        # plausible and strictly increasing, which real counts almost never are.
+        nums = [c for c in r[1:] if _num(c) is not None]
+        return (
+            len(nums) >= 2
+            and all(float(c).is_integer() and 1900 <= c <= 2100 for c in nums)
+            and all(b > a for a, b in zip(nums, nums[1:]))
+        )
+
     def is_data(r):
-        return bool(_label(r[0])) and any(_num(c) is not None for c in r[1:])
+        return bool(_label(r[0])) and any(_num(c) is not None for c in r[1:]) and not is_year_header(r)
 
     def is_group(r):
         return bool(_label(r[0])) and all(c is None or not _label(c) for c in r[1:])
 
-    # The header is the row above the first data row, skipping group labels.
+    # The header is the row above the first data row, skipping group labels and
+    # sparse sub-header rows (e.g. a lone "%change" under one column).
     d = next((i for i, r in enumerate(rows) if is_data(r)), None)
     if d is None:
         raise ValueError(f"{path}: no data rows")
+    width = sum(1 for c in rows[d][1:] if _num(c) is not None)
+    filled = lambda r: sum(1 for c in r[1:] if c is not None and _label(c))
     h = d - 1
-    while h > 0 and is_group(rows[h]):
+    while h > 0 and (is_group(rows[h]) or filled(rows[h]) < max(1, (width + 1) // 2)):
         h -= 1
     header = rows[h]
-    cols = [(j, _label(c)) for j, c in enumerate(header) if j > 0 and c is not None and _label(c)]
+    # Column labels: "2021**" -> "2021" (footnote markers), 2019 -> "2019".
+    cols = [(j, _label(c).rstrip("*").strip()) for j, c in enumerate(header) if j > 0 and c is not None and _label(c)]
     group = None
     out = []
     for r in rows[h + 1 :]:

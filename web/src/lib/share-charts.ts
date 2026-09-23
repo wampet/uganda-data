@@ -9,6 +9,7 @@ import * as T from './trade';
 import * as P from './population';
 import * as D from './census';
 import * as V from './poverty';
+import * as R from './road';
 
 export interface SharedChart {
   slug: string;
@@ -220,6 +221,39 @@ export const sharedCharts: SharedChart[] = [
     height: 360,
     source: src(V.sources.headcount),
     page: { href: '/people/poverty/poverty-in-uganda/', label: 'More on poverty' },
+    topic: 'People',
+  },
+  {
+    slug: 'uganda-road-deaths',
+    title: 'Road deaths in Uganda',
+    subtitle: 'People killed on the roads, as reported to the police',
+    description: `${R.killed.toLocaleString()} people were killed on Uganda’s roads in ${R.year}, about ${Math.round(R.perDay)} a day.`,
+    spec: { kind: 'line', unit: '', digits: 0, x: R.years, xNumeric: true, yMin: 0, series: [{ name: 'Killed', data: R.casualties.killed, color: 1, points: true }] },
+    height: 400,
+    source: src(R.sources.casualties),
+    page: { href: '/people/crime/road-safety/', label: 'Who dies, when and where' },
+    topic: 'People',
+  },
+  {
+    slug: 'road-casualties-by-road-user',
+    title: 'Who is killed or injured on Uganda’s roads?',
+    subtitle: `People killed or injured, by road user, ${R.year}`,
+    description: `${R.usersLatest[0].name} (${R.usersLatest[0].value.toLocaleString()}) and ${R.usersLatest[1].name.toLowerCase()} (${R.usersLatest[1].value.toLocaleString()}) were the most affected in ${R.year}.`,
+    spec: { kind: 'bar', unit: '', digits: 0, categories: R.usersLatest.map((u) => u.name), series: [{ name: 'Killed or injured', data: R.usersLatest.map((u) => u.value) }], labelWidth: 150 },
+    height: 360,
+    source: src(R.sources.road_users),
+    page: { href: '/people/crime/road-safety/', label: 'More on road safety' },
+    topic: 'People',
+  },
+  {
+    slug: 'road-crashes-by-time-of-day',
+    title: 'When do road crashes happen?',
+    subtitle: `Crashes by time of day, ${R.year}`,
+    description: `Crashes peak at ${R.slotLabel(R.peakSlot.slot)}: ${R.peakSlot.crashes.toLocaleString()} crashes in ${R.year}.`,
+    spec: { kind: 'bar', unit: '', digits: 0, categories: R.timeOfDay.map((t) => R.slotLabel(t.slot)), series: [{ name: 'Crashes', data: R.timeOfDay.map((t) => t.crashes) }], labelWidth: 110 },
+    height: 460,
+    source: src(R.sources.time),
+    page: { href: '/people/crime/road-safety/', label: 'More on road safety' },
     topic: 'People',
   },
   districtMap('grid', 'grid-electricity-by-district', 'Who has power from the grid?', 'Share of households using grid electricity for lighting.'),
