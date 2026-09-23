@@ -8,6 +8,7 @@ import * as G from './gdp';
 import * as T from './trade';
 import * as P from './population';
 import * as D from './census';
+import * as V from './poverty';
 
 export interface SharedChart {
   slug: string;
@@ -197,6 +198,28 @@ export const sharedCharts: SharedChart[] = [
     height: 400,
     source: src(P.sources.life),
     page: { href: '/people/population/age-and-growth/', label: 'More on population' },
+    topic: 'People',
+  },
+  {
+    slug: 'uganda-poverty-rate',
+    title: 'Poverty in Uganda since 2000',
+    subtitle: '% of people below the national poverty line',
+    description: `${V.latestRate}% of Ugandans (${V.latestPoor} million) were poor in ${V.latestYear}, down from ${V.firstRate}% in ${V.firstYear}.`,
+    spec: { kind: 'line', unit: '%', x: V.national.years, yMin: 0, series: [{ name: 'Poverty rate', data: V.national.rate, color: 1, points: true }] },
+    height: 400,
+    source: src(V.nationalSource),
+    page: { href: '/people/poverty/poverty-in-uganda/', label: 'Poverty by region and in daily life' },
+    topic: 'People',
+  },
+  {
+    slug: 'poverty-by-region',
+    title: 'Poverty by region',
+    subtitle: `% of people below the poverty line, ${V.latestYear}`,
+    description: `${V.regionsLatest[0].name} is the poorest region (${V.regionsLatest[0].value}%); ${V.regionsLatest[V.regionsLatest.length - 1].name} the least poor (${V.regionsLatest[V.regionsLatest.length - 1].value}%).`,
+    spec: { kind: 'bar', unit: '%', categories: V.regionsLatest.map((r) => r.name), series: [{ name: 'Poverty rate', data: V.regionsLatest.map((r) => r.value) }], labelWidth: 120 },
+    height: 360,
+    source: src(V.sources.headcount),
+    page: { href: '/people/poverty/poverty-in-uganda/', label: 'More on poverty' },
     topic: 'People',
   },
   districtMap('grid', 'grid-electricity-by-district', 'Who has power from the grid?', 'Share of households using grid electricity for lighting.'),

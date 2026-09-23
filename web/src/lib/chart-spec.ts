@@ -65,6 +65,8 @@ export interface ChartSpec {
   pool?: Record<string, (number | null)[]>;
   /** bar: category labels, in display order */
   categories?: string[];
+  /** bar with several series: stack them (each bar sums to its total, e.g. 100%) */
+  stacked?: boolean;
   /** bar: id of a line chart to drive when a bar is clicked */
   selectTarget?: string;
   highlight?: string[];

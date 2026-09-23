@@ -236,6 +236,53 @@ export function createOptions(t: TokenLookup) {
     };
   }
 
+  /** Horizontal stacked bars: one colour per series (fixed slot order), 2px surface gaps between segments. */
+  function stackedBarOption(spec: ChartSpec) {
+    const cats = spec.categories ?? [];
+    const colors = spec.series.map((s) => slot(s.color ?? 1));
+    return {
+      ...baseOption(),
+      grid: { left: 8, right: 16, top: 4, bottom: 4 },
+      tooltip: {
+        ...baseOption().tooltip,
+        trigger: 'axis',
+        axisPointer: { type: 'shadow', shadowStyle: { color: t('--surface-2'), opacity: 0.6 } },
+        formatter: (params: any[]) =>
+          tooltipBox(
+            cats[params[0].dataIndex],
+            params.map((p) => ({ color: colors[p.seriesIndex], name: spec.series[p.seriesIndex].name, value: fmt(p.value, spec) })),
+          ),
+      },
+      xAxis: { type: 'value', max: spec.yMax, splitLine: { show: false }, axisLabel: { show: false } },
+      yAxis: {
+        type: 'category',
+        data: cats,
+        inverse: true,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { color: t('--ink-2'), width: spec.labelWidth ?? 170, overflow: 'truncate' },
+      },
+      series: spec.series.map((s, i) => ({
+        name: s.name,
+        type: 'bar',
+        stack: 'total',
+        barMaxWidth: 22,
+        data: s.data,
+        itemStyle: { color: colors[i], borderColor: t('--surface'), borderWidth: 1 },
+        // Label a segment only when it is wide enough to hold the text.
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: (p: any) => (p.value >= 9 ? fmt(p.value, { ...spec, digits: 0 }) : ''),
+          color: '#ffffff',
+          fontWeight: 600,
+          fontSize: 11,
+        },
+        emphasis: { focus: 'series' },
+      })),
+    };
+  }
+
   function barOption(spec: ChartSpec, selected?: string) {
     const cats = spec.categories ?? [];
     const data = spec.series[0].data;
@@ -402,7 +449,9 @@ export function createOptions(t: TokenLookup) {
       : spec.kind === 'pyramid'
         ? pyramidOption(spec)
         : spec.kind === 'bar'
-          ? barOption(spec, state.selected)
+          ? spec.stacked
+            ? stackedBarOption(spec)
+            : barOption(spec, state.selected)
           : lineOption(spec, state.extra);
   }
 
@@ -436,7 +485,7 @@ export function chartRows(spec: ChartSpec, state: ChartState = {}): (string | nu
     const m = spec.map!;
     return [['Area', 'Value'], ...Object.entries(m.values).map(([code, v]) => [m.names[code] ?? code, v])];
   }
-  return [['', spec.series[0].name], ...(spec.categories ?? []).map((c, i) => [c, spec.series[0].data[i] ?? null])];
+  return [['', ...spec.series.map((s) => s.name)], ...(spec.categories ?? []).map((c, i) => [c, ...spec.series.map((s) => s.data[i] ?? null)])];
 }
 
 export function toCsv(rows: (string | number | null)[][]): string {

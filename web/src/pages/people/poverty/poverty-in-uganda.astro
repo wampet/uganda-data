@@ -1,0 +1,205 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  blanket, byRegion, byResidence, dynamics, facts, latestPoor, latestRate, latestYear, meals, national, poorMillions,
+  nationalSource, regionsLatest, rowOf, shoes, sources,
+} from '../../../lib/poverty';
+
+const allFacts = facts();
+const natByYear = new Map(national.years.map((y, i) => [y, national.rate[i]]));
+const regionMax = Math.ceil(Math.max(...byRegion.rows.flatMap((r) => r.values.filter((v): v is number => v != null))) / 10) * 10;
+const regionOrder = ['Northern', 'Eastern', 'Western', 'Central', 'Kampala'];
+const regionRows = regionOrder.map((n) => byRegion.rows.find((r) => r.name === n)!).filter(Boolean);
+
+// Poverty dynamics (panel of the same households): regions and residence.
+const dynRows = dynamics.rows.filter((r) => r.group === 'Region' || r.group === 'Residence');
+const dynSeries = [
+  { name: 'Always poor', idx: 0, color: 1 },
+  { name: 'Fell into poverty', idx: 2, color: 2 },
+  { name: 'Climbed out', idx: 1, color: 3 },
+  { name: 'Never poor', idx: 3, color: 'muted' as const },
+];
+
+const L = <T,>(a: T[]) => a[a.length - 1];
+const regionNames = ['Kampala', 'Central', 'Western', 'Eastern', 'Northern'];
+const shoesRegions = regionNames.map((n) => ({ n, v: L(rowOf(shoes, n, 'Region').values) }));
+const blanketRegions = regionNames.map((n) => ({ n, v: L(rowOf(blanket, n, 'Region').values) }));
+const mealRegions = meals.filter((m) => m.label !== 'Uganda').sort((a, b) => b['6-17 years'] - a['6-17 years']);
+
+const tiles = [
+  { label: `Poverty rate, ${latestYear}`, value: `${latestRate}%`, note: 'of people below the national poverty line' },
+  { label: 'People in poverty', value: `${latestPoor} million`, note: latestYear },
+  { label: 'Poorest region', value: `${regionsLatest[0].name}`, note: `${regionsLatest[0].value}% poor` },
+  { label: 'Rural vs urban', value: `${L(rowOf(byResidence, 'Rural').values)}% vs ${L(rowOf(byResidence, 'Urban').values)}%`, note: 'poverty rate' },
+];
+---
+
+<Base
+  title="Poverty in Uganda"
+  description={`${latestRate}% of Ugandans (${latestPoor} million) were poor in ${latestYear}. See how poverty has changed since 1999, by region, and in daily life.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/people/">People & Society</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/people/poverty/">Income & Poverty</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Poverty · Uganda National Household Surveys</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Poverty has halved since 2000, but 1 in 6 Ugandans is still poor
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[0]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[1]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+      <Chart
+        id="rate"
+        share="uganda-poverty-rate"
+        title="Share of Ugandans living in poverty"
+        subtitle="% of people below the national poverty line, by survey"
+        height={340}
+        source={nationalSource}
+        spec={{ kind: 'line', unit: '%', x: national.years, yMin: 0, series: [{ name: 'Poverty rate', data: national.rate, color: 1, points: true }] }}
+      />
+      <Chart
+        id="poor-people"
+        title="Number of poor people"
+        subtitle="Millions"
+        height={340}
+        source={sources.absolute}
+        spec={{ kind: 'line', unit: 'M', x: poorMillions.years, yMin: 0, series: [{ name: 'Poor people (millions)', data: poorMillions.values, color: 1, points: true }] }}
+      />
+    </section>
+    <p class="mt-2 max-w-3xl text-sm text-ink-3">
+      The rate fell while the number of poor people stayed roughly flat for a decade: the population grew about as fast as
+      poverty fell. It finally dropped in {latestYear}.
+    </p>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Where is poverty falling?</h2>
+      <p class="mt-1 max-w-3xl text-ink-2">
+        Each small chart is one region, on the same scale. The grey line is Uganda as a whole.
+      </p>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {regionRows.map((r) => (
+          <Chart
+            id={`region-${r.name.toLowerCase()}`}
+            title={r.name}
+            subtitle={`${L(r.values)}% in ${latestYear}`}
+            height={200}
+            table={false}
+            spec={{
+              kind: 'line', unit: '%', x: byRegion.years, yMin: 0, yMax: regionMax,
+              series: [
+                { name: r.name, data: r.values, color: 1, points: true },
+                { name: 'Uganda', data: byRegion.years.map((y) => natByYear.get(y) ?? null), color: 'muted' },
+              ],
+            }}
+          />
+        ))}
+      </div>
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+      <Chart
+        id="dynamics"
+        title="Who moved in and out of poverty?"
+        subtitle={`The same households followed from ${dynamics.period}, % of households`}
+        height={380}
+        source={sources.dynamics}
+        spec={{
+          kind: 'bar', unit: '%', stacked: true, yMax: 100, labelWidth: 90,
+          categories: dynRows.map((r) => r.name),
+          series: dynSeries.map((s) => ({ name: s.name, data: dynRows.map((r) => r.values[s.idx]), color: s.color })),
+        }}
+      />
+      <Chart
+        id="residence"
+        title="Rural and urban poverty"
+        subtitle="% of people below the poverty line"
+        height={380}
+        source={sources.headcount}
+        spec={{ kind: 'line', unit: '%', x: byResidence.years, yMin: 0, series: byResidence.rows.map((r, i) => ({ name: r.name, data: r.values, color: i + 1, points: true })) }}
+      />
+    </section>
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">What poverty looks like day to day</h2>
+      <div class="mt-4 grid gap-4 lg:grid-cols-3">
+        <Chart
+          id="shoes"
+          title="Shoes for household members"
+          subtitle={`% of households, ${L(shoes.years)}`}
+          height={260}
+          source={sources.shoes}
+          spec={{ kind: 'bar', unit: '%', categories: shoesRegions.map((r) => r.n), series: [{ name: '% of households', data: shoesRegions.map((r) => r.v) }], labelWidth: 80 }}
+        />
+        <Chart
+          id="blanket"
+          title="Blankets"
+          subtitle={`% of households, ${L(blanket.years)}`}
+          height={260}
+          source={sources.blanket}
+          spec={{ kind: 'bar', unit: '%', categories: blanketRegions.map((r) => r.n), series: [{ name: '% of households', data: blanketRegions.map((r) => r.v) }], labelWidth: 80 }}
+        />
+        <Chart
+          id="meals"
+          title="Children eating one meal a day"
+          subtitle="% of children aged 6–17, 2023/24"
+          height={260}
+          source={sources.meals}
+          spec={{ kind: 'bar', unit: '%', categories: mealRegions.map((m) => m.label), series: [{ name: '% of children 6–17', data: mealRegions.map((m) => m['6-17 years']) }], labelWidth: 80 }}
+        />
+      </div>
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">How poverty is measured</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5">
+          <li>UBOS counts a person as poor if their household spends less than the national poverty line needed for basic food and non-food needs, adjusted for prices.</li>
+          <li>Figures come from the Uganda National Household Surveys, run every few years, so there is no yearly number.</li>
+          <li>“Moved in and out” follows the <em>same</em> households across two surveys (the Uganda National Panel Survey).</li>
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+        <p class="mt-2 text-sm">Where two UBOS tables cover the same year, we check they agree before combining them.</p>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 1;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>

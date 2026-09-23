@@ -9,10 +9,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import openpyxl
+
 from . import catalog as catalog_mod
 from . import census, geo
 from .http import get_file
-from .parsers import cpi, gdp, population, trade
+from .parsers import cpi, gdp, population, tables, trade
 from .taxonomy import SECTIONS
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -255,6 +257,83 @@ def build_trade(records: list[dict]) -> None:
     })
 
 
+def build_poverty(records: list[dict]) -> None:
+    def read(title_start):
+        r = _dataset(records, title_start)
+        return r, tables.read_grouped(get_file(r["url"]))
+
+    s_head, head = read("Poverty head count by residence and regions")
+    s_long, long = read("Proportion of Poor persons 1999")
+    s_abs, absn = read("Absolute numbers of persons living in poverty")
+    s_dyn, dyn = read("Household Poverty Dynamics between the Survey Periods")
+    s_shoes, shoes = read("Possession of at least one pair of shoes by household members")
+    s_blanket, blanket = read("Possession of a Blanket by Background Characteristics")
+    s_meals = _dataset(records, "Number of meals taken per day by place of residence")
+
+    # National poverty rate: long series (1999/00-2019/20) + the newer table
+    # (2012/13-2023/24). Where they overlap they must agree.
+    long_years, long_vals = long["columns"], tables.pick(long, "proportion")
+    new_years, new_vals = head["columns"], tables.pick(head, "Uganda")
+    norm = lambda y: y.replace("/2000", "/00").replace("/2020", "/20")
+    series = {norm(y): v for y, v in zip(long_years, long_vals)}
+    for y, v in zip(new_years, new_vals):
+        if y in series and abs(series[y] - v) > 0.05:
+            raise ValueError(f"poverty: rate for {y} differs between tables ({series[y]} vs {v})")
+        series[y] = v
+    national = sorted(series.items())
+
+    # Poor people (millions): same joining rule.
+    poor = dict(zip(absn["columns"], tables.pick(absn, "National")))
+    for y, v in zip(new_years, tables.pick(head, "Poor persons (millions)")):
+        if y in poor and abs(poor[y] - v) > 0.05:
+            raise ValueError(f"poverty: poor persons for {y} differ between tables ({poor[y]} vs {v})")
+        poor[y] = v
+
+    regions = [r for r in tables.group_rows(head, "Region") if r["label"] not in ("Uganda", "Poor persons (millions)")]
+
+    # Meals: two header rows (survey, then age group), then "One meal"/"More than one".
+    wb = openpyxl.load_workbook(get_file(s_meals["url"]), data_only=True, read_only=True)
+    mrows = [list(r) for r in wb.worksheets[0].iter_rows(values_only=True)]
+    survey_row = next(r for r in mrows if any("2023/24" in str(c) for c in r if c))
+    age_row = mrows[mrows.index(survey_row) + 1]
+    kind_row = mrows[mrows.index(survey_row) + 2]
+    start = next(j for j, c in enumerate(survey_row) if c and "2023/24" in str(c))
+    one_meal_cols = {
+        " ".join(str(age_row[j] or age_row[j - 1]).split()): j
+        for j in range(start, len(kind_row))
+        if kind_row[j] and str(kind_row[j]).strip().lower().startswith("one meal")
+    }
+    meals = []
+    group = None
+    for r in mrows[mrows.index(kind_row) + 1 :]:
+        label = " ".join(str(r[0]).split()) if r[0] else ""
+        if not label or label.lower().startswith("source"):
+            continue
+        if all(v is None for v in r[1:]):
+            group = label
+            continue
+        if group == "Region" or label == "Uganda":
+            meals.append({"label": label, **{age: r[j] for age, j in one_meal_cols.items()}})
+
+    _write("poverty.json", {
+        "sources": {k: _src(v) for k, v in {
+            "headcount": s_head, "long": s_long, "absolute": s_abs, "dynamics": s_dyn,
+            "shoes": s_shoes, "blanket": s_blanket, "meals": s_meals}.items()},
+        "national": {"years": [y for y, _ in national], "rate": [v for _, v in national]},
+        "poor_millions": {"years": sorted(poor), "values": [poor[y] for y in sorted(poor)]},
+        "by_region": {"years": new_years, "rows": [{"name": r["label"], "values": r["values"]} for r in regions]},
+        "by_residence": {"years": new_years, "rows": [{"name": r["label"], "values": r["values"]} for r in tables.group_rows(head, "Residence")]},
+        "dynamics": {
+            "columns": dyn["columns"][:4],
+            "rows": [{"group": r["group"], "name": r["label"], "values": r["values"][:4]} for r in dyn["rows"]],
+            "period": "2015/16 to 2019/20",
+        },
+        "shoes": {"years": shoes["columns"], "rows": [{"group": r["group"], "name": r["label"], "values": r["values"]} for r in shoes["rows"]]},
+        "blanket": {"years": blanket["columns"], "rows": [{"group": r["group"], "name": r["label"], "values": r["values"]} for r in blanket["rows"]]},
+        "one_meal_2023_24": meals,
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -263,3 +342,4 @@ def build(refresh: bool = False) -> None:
     build_population(records)
     build_gdp(records)
     build_trade(records)
+    build_poverty(records)

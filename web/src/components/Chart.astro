@@ -41,7 +41,7 @@ const rows =
       ? Object.entries(spec.map!.values)
           .sort(([, a], [, b]) => (b ?? -Infinity) - (a ?? -Infinity))
           .map(([code, v]) => [spec.map!.names[code] ?? code, fmt(v)])
-      : (spec.categories ?? []).map((c, i) => [c, fmt(spec.series[0].data[i])]);
+      : (spec.categories ?? []).map((c, i) => [c, ...spec.series.map((s) => fmt(s.data[i]))]);
 const heads =
   spec.kind === 'line'
     ? [spec.xNumeric ? 'Year' : 'Month', ...spec.series.map((s) => s.name)]
@@ -49,8 +49,10 @@ const heads =
       ? ['Age', 'Male', 'Female']
       : spec.kind === 'map'
         ? ['Area', 'Value']
-        : ['', spec.series[0].name];
-const legend = (spec.kind === 'line' && (spec.series.length > 1 || spec.pool)) || spec.kind === 'pyramid';
+        : ['', ...spec.series.map((s) => s.name)];
+const legend = (spec.kind === 'line' && (spec.series.length > 1 || spec.pool)) || spec.kind === 'pyramid' || (spec.kind === 'bar' && spec.series.length > 1);
+// Bars key with a box, lines with a short stroke.
+const boxKeys = spec.kind === 'bar';
 ---
 
 <figure id={id} data-chart class="chart card p-4 sm:p-5" data-source-title={source?.title} data-source-url={source?.url}>
@@ -87,7 +89,7 @@ const legend = (spec.kind === 'line' && (spec.series.length > 1 || spec.pool)) |
           )}
           {spec.series.map((s) => (
             <li class="flex items-center gap-1.5">
-              <span class:list={['key', s.dashed && 'key-dashed']} style={`--c:var(--${s.color === 'muted' ? 'muted-series' : `series-${s.color ?? 1}`})`} />
+              <span class:list={[boxKeys ? 'swatch' : 'key', s.dashed && 'key-dashed']} style={`--c:var(--${s.color === 'muted' ? 'muted-series' : `series-${s.color ?? 1}`});background:var(--c)`} />
               {s.name}
             </li>
           ))}

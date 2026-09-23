@@ -56,6 +56,13 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
   ],
   education: [{ ...districtExplorer, href: '/places/districts/?show=out_of_school', title: 'Children out of school, by district' }],
   jobs: [{ ...districtExplorer, href: '/places/districts/?show=neet', title: 'Youth not in work or school, by district' }],
+  poverty: [
+    {
+      href: '/people/poverty/poverty-in-uganda/',
+      title: 'How many Ugandans are poor, and where?',
+      blurb: 'Poverty since 1999, by region, who moved in and out of poverty, and daily life: shoes, blankets, meals.',
+    },
+  ],
   trade: [
     {
       href: '/economy/trade/exports-and-imports/',

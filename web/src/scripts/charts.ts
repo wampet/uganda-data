@@ -67,7 +67,7 @@ function renderTable(el: HTMLElement) {
       .sort(([, a], [, b]) => (b ?? -Infinity) - (a ?? -Infinity))
       .map(([c, v]) => [spec.map!.names[c] ?? c, num(v)]);
   } else {
-    rows = (spec.categories ?? []).map((c, i) => [c, num(spec.series[0].data[i])]);
+    rows = (spec.categories ?? []).map((c, i) => [c, ...spec.series.map((s) => num(s.data[i]))]);
   }
   tbody.replaceChildren(
     ...rows.map((cells) => {
