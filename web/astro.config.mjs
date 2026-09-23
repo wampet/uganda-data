@@ -4,7 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://uganda-data.pages.dev',
+  // Public address, used for canonical links and link-preview images. Set SITE_URL
+  // in the hosting dashboard (e.g. a custom domain); defaults to the Pages address.
+  site: process.env.SITE_URL || 'https://uganda-data.pages.dev',
   trailingSlash: 'ignore',
   prefetch: { prefetchAll: true, defaultStrategy: 'hover' },
   // Content-Security-Policy as a <meta> tag: Astro hashes every inline script it

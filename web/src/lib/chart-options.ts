@@ -167,7 +167,10 @@ export function createOptions(t: TokenLookup) {
     const male = p.male.map((row) => -row[y]);
     const female = p.female.map((row) => row[y]);
     const ghost = p.ghostIndex != null && p.ghostIndex !== y ? p.ghostIndex : null;
-    const maxAbs = Math.max(...p.male.flat(), ...p.female.flat());
+    // Round the axis end up to a clean number (e.g. 4.9M -> 5M) so edge ticks don't crowd.
+    const rawMax = Math.max(...p.male.flat(), ...p.female.flat());
+    const mag = 10 ** Math.floor(Math.log10(rawMax));
+    const maxAbs = Math.ceil(rawMax / (mag / 2)) * (mag / 2);
     const cM = slot(1);
     const cF = slot(2);
     const cG = t('--muted-series');
@@ -216,10 +219,11 @@ export function createOptions(t: TokenLookup) {
       },
       xAxis: {
         type: 'value',
-        min: -maxAbs * 1.05,
-        max: maxAbs * 1.05,
+        min: -maxAbs,
+        max: maxAbs,
         splitLine: { lineStyle: { color: t('--grid') } },
-        axisLabel: { color: t('--ink-3'), formatter: (v: number) => compact(Math.abs(v)) },
+        // The rounded ends aren't on the tick grid, so their labels would crowd the last tick.
+        axisLabel: { color: t('--ink-3'), formatter: (v: number) => compact(Math.abs(v)), showMinLabel: false, showMaxLabel: false },
       },
       yAxis: {
         type: 'category',

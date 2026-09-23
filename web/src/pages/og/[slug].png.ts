@@ -14,7 +14,12 @@ export const getStaticPaths: GetStaticPaths = () => sharedCharts.map((c) => ({ p
 const W = 1200;
 const H = 630;
 const PAD = 56;
-const FONT = "'Segoe UI', Roboto, 'Helvetica Neue', 'DejaVu Sans', Arial, sans-serif";
+// Bundled Inter (SIL OFL) so previews render identically on any build machine;
+// system fonts are ignored, and any other family in the SVG falls back to Inter.
+const FONT = 'Inter';
+const FONT_FILES = ['400Regular/Inter_400Regular.ttf', '600SemiBold/Inter_600SemiBold.ttf', '700Bold/Inter_700Bold.ttf'].map((f) =>
+  join(process.cwd(), 'node_modules/@expo-google-fonts/inter', f),
+);
 
 // Light-theme tokens, read from the stylesheet so colours are defined once.
 const tokens = (() => {
@@ -113,13 +118,13 @@ export const GET: APIRoute = ({ params }) => {
   ${legend}
   ${inner}
   <line x1="${PAD}" y1="${H - footerH}" x2="${W - PAD}" y2="${H - footerH}" stroke="${t('--grid')}" stroke-width="1"/>
-  <text x="${PAD}" y="${H - 20}" font-size="20" fill="${t('--ink-3')}">${esc(`Source: UBOS, ${c.source.title}`.slice(0, 80))}</text>
+  <text x="${PAD}" y="${H - 20}" font-size="20" fill="${t('--ink-3')}">${esc(wrap(`Source: UBOS, ${c.source.title}`, 72, 1)[0])}</text>
   <text x="${W - PAD}" y="${H - 20}" font-size="22" font-weight="700" text-anchor="end" fill="${t('--ink')}">Uganda in Data</text>
 </svg>`;
 
   const png = new Resvg(svg, {
     fitTo: { mode: 'width', value: W },
-    font: { loadSystemFonts: true, defaultFontFamily: 'Segoe UI' },
+    font: { loadSystemFonts: false, fontFiles: FONT_FILES, defaultFontFamily: FONT },
   }).render().asPng();
 
   return new Response(new Uint8Array(png), { headers: { 'Content-Type': 'image/png' } });
