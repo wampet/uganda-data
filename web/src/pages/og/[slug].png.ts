@@ -65,7 +65,23 @@ export const GET: APIRoute = ({ params }) => {
 
   const titleLines = wrap(c.title, 44, 2);
   const titleSize = 44;
-  const top = PAD + titleLines.length * (titleSize + 8) + 34; // title + subtitle
+  // Legend (right-aligned on the subtitle line) whenever colour carries identity.
+  const legendItems: { name: string; color: string; kind: 'line' | 'dashed' | 'box' }[] =
+    c.spec.kind === 'pyramid'
+      ? [{ name: 'Male', color: t('--series-1'), kind: 'box' }, { name: 'Female', color: t('--series-2'), kind: 'box' }]
+      : c.spec.series.length > 1 && (c.spec.kind === 'line' || c.spec.kind === 'bar')
+        ? c.spec.series.map((s) => ({
+            name: s.name,
+            color: s.color === 'muted' ? t('--muted-series') : t(`--series-${s.color ?? 1}`),
+            kind: c.spec.kind === 'bar' ? 'box' : s.dashed ? 'dashed' : 'line',
+          }))
+        : [];
+  const legendW = legendItems.reduce((n, it) => n + it.name.length * 10.5 + 54, 0);
+  const subtitleW = c.subtitle.length * 12.5;
+  const ownLine = legendItems.length > 0 && PAD + subtitleW + 24 > W - PAD - legendW;
+  const subtitleY = PAD + titleLines.length * (titleSize + 8) + 22;
+  const legendY = ownLine ? subtitleY + 34 : subtitleY;
+  const top = PAD + titleLines.length * (titleSize + 8) + 34 + (ownLine ? 34 : 0); // title + subtitle (+ legend line)
   const footerH = 56;
   const chartW = W - PAD * 2;
   const chartH = H - top - footerH - 12;
@@ -78,18 +94,6 @@ export const GET: APIRoute = ({ params }) => {
   // Nest the chart's <svg> at its position in the card.
   const inner = chartSvg.replace(/^<svg\b[^>]*>/, `<svg x="${PAD}" y="${top}" width="${chartW}" height="${chartH}" viewBox="0 0 ${chartW} ${chartH}">`);
 
-  // Legend (right-aligned on the subtitle line) whenever colour carries identity.
-  const legendItems: { name: string; color: string; kind: 'line' | 'dashed' | 'box' }[] =
-    c.spec.kind === 'pyramid'
-      ? [{ name: 'Male', color: t('--series-1'), kind: 'box' }, { name: 'Female', color: t('--series-2'), kind: 'box' }]
-      : c.spec.kind === 'line' && c.spec.series.length > 1
-        ? c.spec.series.map((s) => ({
-            name: s.name,
-            color: s.color === 'muted' ? t('--muted-series') : t(`--series-${s.color ?? 1}`),
-            kind: s.dashed ? 'dashed' : 'line',
-          }))
-        : [];
-  const legendY = PAD + titleLines.length * (titleSize + 8) + 22;
   let lx = W - PAD;
   const legend = legendItems
     .slice()
@@ -114,7 +118,7 @@ export const GET: APIRoute = ({ params }) => {
   <rect x="${W / 3}" y="0" width="${W / 3}" height="8" fill="${t('--brand')}"/>
   <rect x="${(2 * W) / 3}" y="0" width="${W / 3}" height="8" fill="#d90000"/>
   ${titleLines.map((l, i) => `<text x="${PAD}" y="${PAD + titleSize + i * (titleSize + 8)}" font-size="${titleSize}" font-weight="700" fill="${t('--ink')}">${esc(l)}</text>`).join('\n  ')}
-  <text x="${PAD}" y="${legendY}" font-size="24" fill="${t('--ink-2')}">${esc(c.subtitle)}</text>
+  <text x="${PAD}" y="${subtitleY}" font-size="24" fill="${t('--ink-2')}">${esc(c.subtitle)}</text>
   ${legend}
   ${inner}
   <line x1="${PAD}" y1="${H - footerH}" x2="${W - PAD}" y2="${H - footerH}" stroke="${t('--grid')}" stroke-width="1"/>

@@ -80,9 +80,19 @@ const productionPages = {
   }],
 };
 
+const environmentPage = {
+  href: '/environment/land/forests-land-and-climate/',
+  title: 'Where are Uganda’s forests going?',
+  blurb: 'Forest loss and farmland since 2000, forest reserves, how hot each town gets, and piped water supply.',
+};
+
 export const featured: Record<string, { href: string; title: string; blurb: string }[]> = {
   ...productionPages,
   'admin-units': [districtExplorer],
+  land: [environmentPage],
+  climate: [environmentPage],
+  water: [environmentPage],
+  environment: [environmentPage],
   population: [
     {
       href: '/people/population/age-and-growth/',

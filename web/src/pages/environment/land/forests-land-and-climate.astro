@@ -1,0 +1,151 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  MONTHS, builtUp, change, coolest, facts, farmland, firstYear, forest, hottest, landSummary, landYears, lastYear, notes,
+  reserves, sharePct, sources, stations, water, woodland,
+} from '../../../lib/environment';
+
+const allFacts = facts();
+const n0 = (v: number) => Math.round(v).toLocaleString('en-UG');
+const tiles = [
+  { label: `Forest & woodland, ${lastYear}`, value: `${Math.round(sharePct(forest.values.at(-1)!))}%`, note: `of Uganda’s area, down from ${Math.round(sharePct(forest.values[0]))}% in ${firstYear}` },
+  { label: `Farmland, ${lastYear}`, value: `${Math.round(sharePct(farmland.values.at(-1)!))}%`, note: 'of Uganda’s area' },
+  { label: 'Woodland lost', value: `${Math.round(-change(woodland))}%`, note: `${firstYear}–${lastYear}` },
+  { label: 'Built-up land', value: `${n0(builtUp.values.at(-1)!)} km²`, note: `up from ${n0(builtUp.values[0])} km² in ${firstYear}` },
+];
+const trend = ['Forestry', 'Agriculture', 'Grassland', 'Bush land'].map((n, i) => {
+  const r = landSummary.find((x) => x.name === n)!;
+  return { name: r.label, data: r.values, color: i + 1, points: true };
+});
+const shown = [hottest, stations.find((s) => s.station === 'Kampala')!, coolest];
+---
+
+<Base
+  title="Forests, land and climate"
+  description={`Uganda lost ${Math.round(-change(forest))}% of its forest and woodland between ${firstYear} and ${lastYear}. See how land use, temperatures and water supply are changing.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/environment/">Environment</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/environment/land/">Land</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Environment · UBOS land cover, weather and water statistics</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          Where are Uganda’s forests going?
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[0]} {allFacts[1]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[2]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="land-trend"
+        share="uganda-forest-cover"
+        title="Forests shrink as farms spread"
+        subtitle="Land cover, square kilometres"
+        height={380}
+        source={sources.land}
+        spec={{ kind: 'line', unit: ' km²', digits: 0, x: landYears, yMin: 0, series: trend }}
+      />
+      <Chart
+        id="land-share"
+        title="What covers Uganda’s land?"
+        subtitle="Share of total area, including lakes and rivers"
+        height={380}
+        source={sources.land}
+        spec={{ kind: 'bar', stacked: true, unit: '%', digits: 1, categories: landYears, series: landSummary.map((r, i) => ({ name: r.label, data: r.values.map(sharePct), color: i + 1 })), labelWidth: 50 }}
+      />
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-[1fr_1.4fr]">
+      <Chart
+        id="reserves"
+        title="Forest reserves by region"
+        subtitle="Hectares of central and local forest reserves, 2015"
+        height={260}
+        source={sources.reserves}
+        spec={{ kind: 'bar', unit: ' ha', digits: 0, categories: reserves.map((r) => r.region), series: [{ name: 'Hectares', data: reserves.map((r) => r.total_ha) }], labelWidth: 90 }}
+      />
+      <Chart
+        id="stations"
+        share="uganda-temperature-by-town"
+        title="How hot does it get?"
+        subtitle="Long-term average daytime high and night-time low, °C"
+        height={400}
+        source={sources.temperature}
+        spec={{ kind: 'bar', unit: '°C', digits: 1, categories: stations.map((s) => s.station), series: [
+          { name: 'Daytime high', data: stations.map((s) => s.max), color: 2 },
+          { name: 'Night-time low', data: stations.map((s) => s.min), color: 1 },
+        ], labelWidth: 80 }}
+      />
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="months"
+        title="In most towns, February is the hottest month"
+        subtitle="Average daytime high by month, °C"
+        height={360}
+        source={sources.temperature}
+        spec={{ kind: 'line', unit: '°C', digits: 1, x: MONTHS, series: shown.map((s, i) => ({ name: s.station, data: s.monthly_max, color: i + 1, points: true })) }}
+      />
+      <Chart
+        id="water"
+        title="Piped water: more every year"
+        subtitle="National Water and Sewerage Corporation, million cubic metres"
+        height={360}
+        source={sources.water}
+        spec={{ kind: 'line', unit: ' million m³', digits: 1, x: water.map((w) => w.year), yMin: 0, series: [
+          { name: 'Produced', data: water.map((w) => w.produced), color: 1, points: true },
+          { name: 'Supplied', data: water.map((w) => w.supplied), color: 2, points: true },
+        ] }}
+      />
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 2;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>

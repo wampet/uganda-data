@@ -283,6 +283,45 @@ export function createOptions(t: TokenLookup) {
     };
   }
 
+  /** Horizontal grouped bars (several series side by side), one colour per series, value labels at the end. */
+  function groupedBarOption(spec: ChartSpec) {
+    const cats = spec.categories ?? [];
+    const colors = spec.series.map((s) => slot(s.color ?? 1));
+    return {
+      ...baseOption(),
+      grid: { left: 8, right: 56, top: 4, bottom: 4 },
+      tooltip: {
+        ...baseOption().tooltip,
+        trigger: 'axis',
+        axisPointer: { type: 'shadow', shadowStyle: { color: t('--surface-2'), opacity: 0.6 } },
+        formatter: (params: any[]) =>
+          tooltipBox(
+            cats[params[0].dataIndex],
+            params.map((p) => ({ color: colors[p.seriesIndex], name: spec.series[p.seriesIndex].name, value: fmt(p.value, spec) })),
+          ),
+      },
+      xAxis: { type: 'value', splitLine: { lineStyle: { color: t('--grid') } }, axisLabel: { show: false } },
+      yAxis: {
+        type: 'category',
+        data: cats,
+        inverse: true,
+        axisLine: { lineStyle: { color: t('--axis') } },
+        axisTick: { show: false },
+        axisLabel: { color: t('--ink-2'), width: spec.labelWidth ?? 170, overflow: 'truncate' },
+      },
+      series: spec.series.map((s, i) => ({
+        name: s.name,
+        type: 'bar',
+        barMaxWidth: 12,
+        barGap: '20%',
+        data: s.data,
+        itemStyle: { color: colors[i], borderRadius: [0, 3, 3, 0] },
+        label: { show: true, position: 'right', formatter: (p: any) => fmt(p.value, spec), color: t('--ink'), fontSize: 11 },
+        emphasis: { focus: 'series' },
+      })),
+    };
+  }
+
   function barOption(spec: ChartSpec, selected?: string) {
     const cats = spec.categories ?? [];
     const data = spec.series[0].data;
@@ -451,7 +490,9 @@ export function createOptions(t: TokenLookup) {
         : spec.kind === 'bar'
           ? spec.stacked
             ? stackedBarOption(spec)
-            : barOption(spec, state.selected)
+            : spec.series.length > 1
+              ? groupedBarOption(spec)
+              : barOption(spec, state.selected)
           : lineOption(spec, state.extra);
   }
 

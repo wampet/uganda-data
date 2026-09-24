@@ -721,6 +721,101 @@ def build_government(records: list[dict]) -> None:
     })
 
 
+def build_environment(records: list[dict]) -> None:
+    from .parsers import wide  # shared wide-table reader (labels in col 1, text numbers)
+
+    def rows_of(r):
+        wb = openpyxl.load_workbook(get_file(r["url"]), data_only=True, read_only=True)
+        return [list(x) for x in wb.worksheets[0].iter_rows(values_only=True) if any(v is not None for v in x)]
+
+    # Land cover (km²). The 2019 column uses a different classification (bush
+    # land falls 84% in a single step), so the trend stops at 2017.
+    s_land = _dataset(records, "National Land Cover statistics")
+    land = wide.read(get_file(s_land["url"]))
+    years = land["years"]
+    cut = years.index("2017") + 1 if "2017" in years else len(years)
+    # The table has a summary block and a detailed block, each ending in a total row.
+    blocks, cur = [], []
+    for r in land["rows"]:
+        if r["label"].lower().startswith("total"):
+            blocks.append((cur, r["values"][:cut]))
+            cur = []
+        else:
+            cur.append({"name": " ".join(r["label"].split()), "values": r["values"][:cut]})
+    if len(blocks) != 2:
+        raise ValueError(f"environment: expected summary and detailed land cover blocks, got {len(blocks)}")
+    for rows, total in blocks:
+        for i, t in enumerate(total):
+            if abs(sum(x["values"][i] for x in rows) - t) > 0.005 * t:
+                raise ValueError(f"environment: land cover {years[i]} does not add up to the total area")
+    land_summary, land_detail = blocks[0][0], blocks[1][0]
+    land_total = blocks[0][1][0]
+
+    # Forest reserves by region (hectares), 2015.
+    s_res = _dataset(records, "Share of total area under forest reserves by region")
+    rrows = rows_of(s_res)
+    reserves = []
+    for r in rrows:
+        name = " ".join(str(r[0]).split()) if r[0] else ""
+        if name and isinstance(r[1], int | float) and isinstance(r[5], int | float):
+            reserves.append({"region": name, "central_ha": r[1], "local_ha": r[3], "total_ha": r[5]})
+    ug = next(x for x in reserves if x["region"] == "Uganda")
+    regions = [x for x in reserves if x["region"] != "Uganda"]
+    if abs(sum(x["total_ha"] for x in regions) - ug["total_ha"]) > 5:
+        raise ValueError("environment: forest reserve regions don't add up to the Uganda total")
+
+    # Temperature: per station, long-term and 2017-2021 monthly max/min.
+    s_temp = _dataset(records, "Temperature (Degrees Celsius) for selected centres")
+    trows = rows_of(s_temp)
+    station, temps, monthly = None, {}, {}
+    for r in trows:
+        lab = " ".join(str(r[1]).split()) if len(r) > 1 and r[1] else ""
+        months = [wide.num(v) for v in r[2:14]]
+        if lab and all(v is None for v in months) and lab.isupper():
+            station = lab.title()
+            temps[station], monthly[station] = {}, {}
+            continue
+        if station and lab and any(v is not None for v in months):
+            vals = [v for v in months if v is not None]
+            if len(vals) >= 10:  # need most of the year for a fair annual mean
+                temps[station][lab] = round(sum(vals) / len(vals), 2)
+                monthly[station][lab] = months
+    # LT.Max/LT.Min are monthly long-term averages (they match the 2017-2021
+    # average, so they show the climate of each place, not a trend).
+    stations = []
+    for name, d in temps.items():
+        if "LT.Max" in d and "LT.Min" in d:
+            stations.append({"station": name, "max": d["LT.Max"], "min": d["LT.Min"], "monthly_max": monthly[name]["LT.Max"],
+                             "monthly_min": monthly[name]["LT.Min"]})
+    if len(stations) < 5:
+        raise ValueError(f"environment: expected temperature for several stations, got {len(stations)}")
+
+    # Water produced and supplied by NWSC, national (million m³).
+    s_water = _dataset(records, "Water produced and supplied (million m3) by NWSC")
+    wrows = rows_of(s_water)
+    water = []
+    for r in wrows:
+        cells = [c for c in r if c is not None]
+        if len(cells) >= 3 and str(cells[0]).strip()[:2] == "20" and "/" in str(cells[0]):
+            water.append({"year": str(cells[0]).strip(), "produced": cells[1], "supplied": cells[2]})
+
+    _write("environment.json", {
+        "sources": {k: _src(v) for k, v in {"land": s_land, "reserves": s_res, "temperature": s_temp, "water": s_water}.items()},
+        "land": {"years": years[:cut], "summary": land_summary, "detail": land_detail, "total": land_total, "unit": "km²"},
+        "forest_reserves_2015": regions,
+        "temperature": stations,
+        "water": water,
+        "notes": [
+            "UBOS’s land cover table also has a 2019 column, but it appears to use a different classification (bush land "
+            "falls by 84% in one step), so the trend shown stops at 2017.",
+            "Temperatures are UBOS’s long-term monthly averages for each weather station: typical daytime highs and night-time lows.",
+            "Rainfall is not shown: in UBOS’s 2014–2020 rainfall table, Gulu and Arua have identical figures, and the period covered is unclear.",
+            "Water figures are for National Water and Sewerage Corporation towns only. Some town-level water tables contain "
+            "impossible values (more water supplied than produced), so only national totals are used.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -735,3 +830,4 @@ def build(refresh: bool = False) -> None:
     build_jobs(records)
     build_health(records)
     build_government(records)
+    build_environment(records)

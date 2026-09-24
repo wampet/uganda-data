@@ -14,6 +14,7 @@ import * as E from './education';
 import * as J from './jobs';
 import * as H from './health';
 import * as GF from './government';
+import * as EN from './environment';
 
 export interface SharedChart {
   slug: string;
@@ -314,6 +315,34 @@ export const sharedCharts: SharedChart[] = [
     source: src(GF.sources.functions),
     page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
     topic: 'Economy',
+  },
+  {
+    slug: 'uganda-forest-cover',
+    title: 'Uganda’s forests are shrinking',
+    subtitle: `Land cover, square kilometres, ${EN.firstYear}–${EN.lastYear}`,
+    description: `${EN.facts()[0]} ${EN.facts()[2]}`,
+    spec: { kind: 'line', unit: ' km²', digits: 0, x: EN.landYears, yMin: 0, series: ['Forestry', 'Agriculture', 'Grassland', 'Bush land'].map((n, i) => {
+      const r = EN.landSummary.find((x) => x.name === n)!;
+      return { name: r.label, data: r.values, color: i + 1, points: true };
+    }) },
+    height: 400,
+    source: src(EN.sources.land),
+    page: { href: '/environment/land/forests-land-and-climate/', label: 'More on land and climate' },
+    topic: 'Environment',
+  },
+  {
+    slug: 'uganda-temperature-by-town',
+    title: 'How hot does it get in Uganda’s towns?',
+    subtitle: 'Long-term average daytime high and night-time low, °C',
+    description: `${EN.facts()[5]} ${EN.facts()[6]}`,
+    spec: { kind: 'bar', unit: '°C', digits: 1, categories: EN.stations.map((s) => s.station), series: [
+      { name: 'Daytime high', data: EN.stations.map((s) => s.max), color: 2 },
+      { name: 'Night-time low', data: EN.stations.map((s) => s.min), color: 1 },
+    ], labelWidth: 80 },
+    height: 440,
+    source: src(EN.sources.temperature),
+    page: { href: '/environment/land/forests-land-and-climate/', label: 'More on land and climate' },
+    topic: 'Environment',
   },
   districtMap('grid', 'grid-electricity-by-district', 'Who has power from the grid?', 'Share of households using grid electricity for lighting.'),
   districtMap('out_of_school', 'children-out-of-school-by-district', 'Children out of school, by district', 'Share of children aged 6–12 not in school.'),
