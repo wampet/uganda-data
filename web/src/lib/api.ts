@@ -17,6 +17,8 @@ import envJson from '../data/environment.json';
 import prodJson from '../data/production.json';
 import censusJson from '../data/census.json';
 import wbJson from '../data/wellbeing.json';
+import miningJson from '../data/mining.json';
+import govSurveyJson from '../data/governance.json';
 import { chartRows } from './chart-options';
 import { sharedCharts } from './share-charts';
 import { districts, indicators, national, source as censusSource } from './census';
@@ -68,6 +70,8 @@ export const datasets: Dataset[] = [
   ds('environment', 'Environment', 'Land cover, forest reserves, temperature by weather station and piped water supply.', '/environment/land/forests-land-and-climate/', envJson),
   ds('production', 'Production', 'Energy, factories, transport, tourism, mobile money and agriculture.', '/production/', prodJson),
   ds('wellbeing', 'National standard indicators', 'UBOS’s scorecard for lower-middle-income status, multidimensional poverty, electricity access and more.', '/wellbeing/nsi-income/national-scorecard/', wbJson),
+  ds('mining', 'Mineral production', 'Value and quantity of recorded mineral production by mineral, 2019–2023.', '/production/mining/minerals/', miningJson),
+  ds('governance', 'Justice and elections (survey)', 'Where people take grievances, satisfaction with justice processes and reported election irregularities (published 2018).', '/people/governance/justice-and-elections/', govSurveyJson),
   ds('districts', 'Census 2024 by district', 'Indicators for every district, city and sub-region from the 2024 census.', '/places/districts/', censusJson),
 ];
 

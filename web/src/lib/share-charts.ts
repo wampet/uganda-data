@@ -19,6 +19,7 @@ import * as BK from './banking';
 import * as CR from './crime';
 import * as GE from './gender';
 import * as WB from './wellbeing';
+import * as MN from './mining';
 
 export interface SharedChart {
   slug: string;
@@ -319,6 +320,17 @@ export const sharedCharts: SharedChart[] = [
     source: src(GF.sources.functions),
     page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
     topic: 'Economy',
+  },
+  {
+    slug: 'uganda-mineral-production',
+    title: 'What Uganda mines: iron ore takes off',
+    subtitle: 'Value of recorded mineral production, UGX billion',
+    description: `${MN.facts()[0]} ${MN.facts()[1]}`,
+    spec: { kind: 'bar', stacked: true, unit: ' bn', digits: 1, categories: MN.years, series: MN.topSeries(4).map((x, i) => ({ ...x, color: i + 1 })), labelWidth: 60 },
+    height: 420,
+    source: src(MN.sources.value),
+    page: { href: '/production/mining/minerals/', label: 'More on mining' },
+    topic: 'Production',
   },
   {
     slug: 'uganda-multidimensional-poverty',

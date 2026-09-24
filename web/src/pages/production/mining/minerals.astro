@@ -1,0 +1,101 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import { bn, facts, iron, ironQty, latestByValue, notes, sources, topSeries, valueTotal, year, years, y0 } from '../../../lib/mining';
+
+const allFacts = facts();
+const L = years.length - 1;
+const n0 = (v: number) => Math.round(v).toLocaleString('en-UG');
+const tiles = [
+  { label: `Mineral output, ${year}`, value: bn(valueTotal[L]), note: `from ${bn(valueTotal[0])} in ${y0}` },
+  { label: `Iron ore, ${year}`, value: bn(iron.values[L] ?? 0), note: `${n0(ironQty.values[L] ?? 0)} tonnes` },
+  { label: 'Biggest mineral', value: latestByValue[0].name, note: `by value, ${year}` },
+  { label: 'Minerals produced', value: String(latestByValue.length), note: `with recorded output in ${year}` },
+];
+---
+
+<Base
+  title="Mining and minerals"
+  description={`Uganda's recorded mineral production was worth ${bn(valueTotal[L])} in ${year}. See which minerals are mined and how output is changing.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/production/">Production</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/production/mining/">Mining</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Mining · Ministry of Energy and Mineral Development via UBOS</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">What does Uganda mine?</h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[0]} {allFacts[1]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[2]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="value"
+        share="uganda-mineral-production"
+        title="Iron ore takes off"
+        subtitle="Value of recorded mineral production, UGX billion"
+        height={400}
+        source={sources.value}
+        spec={{ kind: 'bar', stacked: true, unit: ' bn', digits: 1, categories: years, series: topSeries(4).map((s, i) => ({ ...s, color: i + 1 })), labelWidth: 50 }}
+      />
+      <Chart
+        id="latest"
+        title={`What was mined in ${year}`}
+        subtitle="Value of recorded production, UGX billion"
+        height={400}
+        source={sources.value}
+        spec={{ kind: 'bar', unit: ' bn', digits: 1, categories: latestByValue.map((m) => m.name), series: [{ name: 'UGX billion', data: latestByValue.map((m) => m.value) }], labelWidth: 170 }}
+      />
+    </section>
+
+    <p class="mt-6 text-sm text-ink-3">
+      Fuel prices and sales are on <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/production/energy/power-and-fuel/">Power and fuel</a>; gold exports on <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/economy/trade/exports-and-imports/">What does Uganda sell?</a>
+    </p>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 2;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>

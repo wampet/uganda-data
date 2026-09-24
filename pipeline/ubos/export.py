@@ -1193,6 +1193,142 @@ def build_wellbeing(records: list[dict]) -> None:
     })
 
 
+def build_mining(records: list[dict]) -> None:
+    from .parsers import wide
+
+    def table(title_start):
+        s = _dataset(records, title_start)
+        rows = [r for r in wide.load(get_file(s["url"])) if any(v not in (None, "") for v in r)]
+        years = [wide.year_of(c) for c in rows[1][1:6]]
+        if None in years:
+            raise ValueError(f"mining: unexpected year header in '{title_start}'")
+        group, out, total = None, [], None
+        for r in rows[2:]:
+            name = " ".join(str(r[0]).split()) if r[0] is not None else ""
+            if not name or name.lower().startswith("source"):
+                continue
+            vals = [wide.num(v) for v in r[1:6]]
+            if all(v is None for v in vals):
+                group = name.rstrip()
+                continue
+            if name.lower().startswith("grand total"):
+                total = vals
+                continue
+            out.append({"group": group, "name": name, "values": vals})
+        for i, y in enumerate(years):  # every year's minerals must add up to UBOS's grand total
+            if abs(sum(m["values"][i] or 0 for m in out) - total[i]) > max(1.0, 1e-4 * total[i]):
+                raise ValueError(f"mining: '{title_start}' {y} rows don't add up to the grand total")
+        return s, years, out, total
+
+    s_val, years, value, value_total = table("Annual value of Mineral Production Value")
+    s_qty, qyears, qty, qty_total = table("Annual mineral Production by Quantity")
+    if years != qyears:
+        raise ValueError("mining: value and quantity tables cover different years")
+    # Value is in UGX '000; convert to UGX billion.
+    for m in value:
+        m["values"] = [None if v is None else round(v / 1e6, 3) for v in m["values"]]
+    _write("mining.json", {
+        "sources": {"value": _src(s_val), "quantity": _src(s_qty)},
+        "years": years,
+        "value_ugx_bn": value,
+        "value_total_ugx_bn": [round(v / 1e6, 3) for v in value_total],
+        "quantity_tonnes": qty,
+        "quantity_total_tonnes": qty_total,
+        "notes": [
+            "Mineral production is what the Ministry of Energy and Mineral Development recorded; small-scale (artisanal) "
+            "mining is often not recorded.",
+            "Values are in current shillings, so part of any change is price change.",
+            "Some minerals appear in only a few years (for example marble, lithium and iron ore); a blank means no "
+            "production was recorded.",
+            "Fuel prices, sales and imports are on the Power and fuel page.",
+        ],
+    })
+
+
+def build_governance(records: list[dict]) -> None:
+    """Three small UBOS survey tables (CSV): election irregularities, where grievances go, justice satisfaction."""
+    import csv
+    import io
+
+    from .parsers import wide
+
+    def rows_of(title_start):
+        s = _dataset(records, title_start)
+        text = open(get_file(s["url"]), "rb").read().decode("utf-8-sig", errors="replace")
+        return s, [r for r in csv.reader(io.StringIO(text))]
+
+    # Irregularities: labels are split over several lines ("Alteration of" / "voters register").
+    s_irr, rows = rows_of("Types of Irregularities witnessed")
+    cols = [c.strip() for c in rows[1][1:11]]
+    if cols[-1] != "National":
+        raise ValueError("governance: unexpected irregularities columns")
+    parts, irregularities, total = [], [], None
+    for r in rows[2:]:
+        label = r[0].strip()
+        vals = [wide.num(v) for v in r[1:11]]
+        if all(v is None for v in vals):
+            if label:
+                parts.append(label)
+            continue
+        name = " ".join(parts + [label]).replace("/ ", "/").strip()
+        parts = []
+        if name.lower() == "total":
+            total = vals
+            continue
+        irregularities.append({"name": name[:1].upper() + name[1:], "values": vals})
+    for i, c in enumerate(cols):
+        if abs(sum(x["values"][i] for x in irregularities) - 100) > 0.6 or total[i] != 100:
+            raise ValueError(f"governance: irregularity shares for {c} don't add up to 100")
+
+    # Grievances: % of people with a grievance who took it to each place (several answers allowed).
+    s_gr, rows = rows_of("Population that referred thier grievances")
+    places = [c.strip() for c in rows[0][1:7]]
+    grievances, group = [], None
+    for r in rows[1:]:
+        label = r[0].strip()
+        vals = [wide.num(v) for v in r[1:7]]
+        if not label:
+            continue
+        if all(v is None for v in vals):
+            group = label
+            continue
+        grievances.append({"group": "Total" if label == "Total" else group, "name": label, "values": vals})
+    places = ["Uganda Human Rights Commission" if p == "Uganda Human Commission" else p for p in places]
+
+    # Satisfaction with the justice process: four aspects, satisfied vs dissatisfied.
+    s_sat, rows = rows_of("Levels of Respondents")
+    aspects = [c.strip() for c in rows[0][1:9:2]]
+    satisfaction, group = [], None
+    for r in rows[2:]:
+        label = r[0].strip()
+        vals = [wide.num(v) for v in r[1:9]]
+        if not label:
+            continue
+        if all(v is None for v in vals):
+            group = label
+            continue
+        sat = vals[0::2]
+        for a, b in zip(sat, vals[1::2]):
+            if a is not None and b is not None and abs(a + b - 100) > 0.6:
+                raise ValueError(f"governance: satisfaction for {label} doesn't add up to 100")
+        satisfaction.append({"group": "National" if label == "National" else group, "name": label, "satisfied": sat})
+
+    _write("governance.json", {
+        "sources": {"irregularities": _src(s_irr), "grievances": _src(s_gr), "satisfaction": _src(s_sat)},
+        "published": s_irr["updated"],
+        "irregularities": {"columns": cols, "rows": irregularities},
+        "grievances": {"places": places, "rows": grievances},
+        "satisfaction": {"aspects": aspects, "rows": satisfaction},
+        "notes": [
+            "These are survey answers: what people said they saw or experienced. They are not official findings.",
+            "The election table covers only people who said they saw an irregularity during the presidential election "
+            "before the survey. It shows how those reports split by type, not how many people saw irregularities.",
+            "People could name more than one place where they took a grievance, so those figures add up to more than 100%.",
+            "UBOS published these tables in 2018 and has not updated them since.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -1211,3 +1347,5 @@ def build(refresh: bool = False) -> None:
     build_banking(records)
     build_crime(records)
     build_wellbeing(records)
+    build_mining(records)
+    build_governance(records)

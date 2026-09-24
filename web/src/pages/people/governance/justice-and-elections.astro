@@ -1,0 +1,129 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  aspects, facts, grievanceRegions, grievanceTotal, irregularities, notes, places, publishedYear, satEducation, satNational,
+  sources,
+} from '../../../lib/governance';
+
+const allFacts = facts();
+const lc = places.indexOf('Local council (LC) leader');
+const police = places.indexOf('Police');
+---
+
+<Base
+  title="Justice and elections"
+  description="Where Ugandans take their grievances, how satisfied they are with the justice process, and what survey respondents reported about the last presidential election."
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/people/">People &amp; Society</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/people/governance/">Governance &amp; Services</a>
+    </nav>
+
+    <header class="pb-10 pt-6">
+      <p class="text-sm font-medium text-brand-ink">Governance · UBOS survey tables, published {publishedYear}</p>
+      <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Justice and elections: what people told UBOS</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">{allFacts[0]} {allFacts[1]}</p>
+      <p class="mt-3 max-w-2xl text-sm text-ink-3">
+        These figures are survey answers about people’s own experiences, published by UBOS in {publishedYear}. They are not
+        official findings, and UBOS has not published newer tables.
+      </p>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[2] ?? allFacts[0]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <h2 class="text-2xl font-semibold tracking-tight">Justice</h2>
+    <section class="mt-4 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="grievances"
+        title="Where people take a grievance"
+        subtitle="% of people with a grievance who went to each (more than one answer allowed)"
+        height={320}
+        source={sources.grievances}
+        spec={{ kind: 'bar', unit: '%', digits: 0, categories: grievanceTotal.map((g) => g.name), series: [{ name: '% of people', data: grievanceTotal.map((g) => g.value) }], labelWidth: 200 }}
+      />
+      <Chart
+        id="grievance-regions"
+        title="LC leaders and police, by region"
+        subtitle="% of people with a grievance who went to each"
+        height={320}
+        source={sources.grievances}
+        spec={{ kind: 'bar', unit: '%', digits: 0, categories: grievanceRegions.map((r) => r.name), series: [
+          { name: 'LC leader', data: grievanceRegions.map((r) => r.values[lc]), color: 1 },
+          { name: 'Police', data: grievanceRegions.map((r) => r.values[police]), color: 2 },
+        ], labelWidth: 80 }}
+      />
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="satisfaction"
+        title="Satisfaction with the justice process"
+        subtitle="% of people who went through it and were satisfied, by aspect"
+        height={300}
+        source={sources.satisfaction}
+        spec={{ kind: 'bar', unit: '%', digits: 0, categories: aspects, series: [{ name: 'Satisfied', data: satNational }], labelWidth: 140 }}
+      />
+      <Chart
+        id="satisfaction-education"
+        title="The more schooling, the less satisfied"
+        subtitle="% satisfied with the final judgment, by education"
+        height={300}
+        source={sources.satisfaction}
+        spec={{ kind: 'bar', unit: '%', digits: 0, categories: satEducation.map((r) => r.name.replace('/ ', '/')), series: [{ name: 'Satisfied with judgment', data: satEducation.map((r) => r.satisfied[aspects.indexOf('The final judgment')]) }], labelWidth: 140 }}
+      />
+    </section>
+
+    <h2 class="mt-14 text-2xl font-semibold tracking-tight">Elections</h2>
+    <section class="mt-4 grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+      <Chart
+        id="irregularities"
+        title="Irregularities people reported seeing"
+        subtitle="Type of irregularity, % of all reports (people who saw none are not included)"
+        height={360}
+        source={sources.irregularities}
+        spec={{ kind: 'bar', unit: '%', digits: 1, categories: irregularities.map((r) => r.name), series: [{ name: '% of reports', data: irregularities.map((r) => r.share) }], labelWidth: 250 }}
+      />
+      <div class="card p-5 text-ink-2">
+        <h3 class="text-lg font-semibold text-ink">How to read this chart</h3>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          <li>It covers only survey respondents who said they saw an irregularity during the last presidential election before the survey.</li>
+          <li>It shows how their reports were split by type, adding up to 100%. It does <strong class="text-ink">not</strong> show how many people saw irregularities, or how widespread any of them were.</li>
+          <li>These are people’s own reports and were not verified. UBOS does not name the election year in the table; it published the figures in {publishedYear}.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 2 % facts.length;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>

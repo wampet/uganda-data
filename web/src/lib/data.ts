@@ -162,6 +162,21 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
     title: 'Uganda’s national scorecard',
     blurb: 'Progress on UBOS’s standard indicators: income, health and schooling, poverty in all its forms, roads and power.',
   }]])),
+  mining: [{
+    href: '/production/mining/minerals/',
+    title: 'What does Uganda mine?',
+    blurb: 'The value of minerals produced since 2019: iron ore, limestone for cement, and how little gold is recorded as mined.',
+  }],
+  governance: [{
+    href: '/people/governance/justice-and-elections/',
+    title: 'Justice and elections: what people told UBOS',
+    blurb: 'Where people take grievances, satisfaction with the justice process, and election irregularities people reported.',
+  }],
+  households: [{
+    href: '/people/jobs/work-and-earnings/',
+    title: 'Who has a job, and what does it pay?',
+    blurb: 'The working population by age, sex and sector, including UBOS’s household survey tables.',
+  }],
   'government-finance': [
     {
       href: '/economy/government-finance/where-the-money-goes/',
