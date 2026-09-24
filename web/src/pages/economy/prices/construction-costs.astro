@@ -1,0 +1,90 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { fmtDate, monthLabel } from '../../../lib/data';
+import { buildingCosts, CIPI_ALL, cipi, cipiGroups, pct } from '../../../lib/indices';
+
+const b = buildingCosts();
+const m = cipi.months;
+const yoyStart = cipi.overall[CIPI_ALL].yoy.findIndex((v) => v != null);
+const last = (v: (number | null)[]) => [...v].reverse().find((x) => x != null) ?? 0;
+const byYoy = [...b.byMaterial].sort((a, c) => c.yoy - a.yoy);
+const kinds = Object.keys(cipi.overall);
+
+const tiles = [
+  { label: 'Change in a year', value: pct(b.yoy), note: `all construction, ${monthLabel(b.latest, true)}` },
+  { label: 'Since 2016/17', value: pct(b.sinceBase, 0), note: 'all construction' },
+  ...cipiGroups.filter(([k]) => k !== 'Utilities').map(([k, v]) => ({ label: k, value: pct(last(v.index) - 100, 0), note: 'since 2016/17' })),
+].slice(0, 4);
+---
+
+<Base title="Construction costs in Uganda" description={`${b.facts[0]} ${b.facts[1]}`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/economy/">Economy</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/economy/prices/">Prices & Inflation</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Construction costs · updated {fmtDate(cipi.source.updated)}</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">What it costs to build</h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{b.facts[0]} {b.facts[1]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="cipi-since"
+        title="Which materials got dearer?"
+        subtitle={`Price change since 2016/17, to ${monthLabel(b.latest)}`}
+        height={440}
+        source={cipi.source}
+        spec={{ kind: 'bar', unit: '%', digits: 0, labelWidth: 170, categories: b.byMaterial.map((x) => x.name), series: [{ name: 'Change since 2016/17', data: b.byMaterial.map((x) => Math.round(x.since * 10) / 10) }] }}
+      />
+      <Chart
+        id="cipi-year"
+        title="In the last 12 months"
+        subtitle={`Price change on a year earlier, ${monthLabel(b.latest)}`}
+        height={440}
+        source={cipi.source}
+        spec={{ kind: 'bar', unit: '%', digits: 1, labelWidth: 170, categories: byYoy.map((x) => x.name), series: [{ name: 'Annual change', data: byYoy.map((x) => x.yoy) }] }}
+      />
+    </section>
+
+    <section class="mt-4 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="cipi-kinds"
+        title="Cost index by type of building work"
+        subtitle="2016/17 = 100"
+        ranges
+        height={320}
+        source={cipi.source}
+        spec={{ kind: 'line', digits: 1, x: m, series: kinds.map((k, i) => ({ name: k, data: cipi.overall[k].index, color: i + 1 })) }}
+      />
+      <Chart
+        id="cipi-yoy"
+        title="How fast building costs are rising"
+        subtitle="All construction: % change on a year earlier"
+        ranges
+        height={320}
+        source={cipi.source}
+        spec={{ kind: 'line', unit: '%', digits: 1, zeroLine: true, area: true, x: m.slice(yoyStart), series: [{ name: 'Annual change', data: cipi.overall[CIPI_ALL].yoy.slice(yoyStart), color: 1 }] }}
+      />
+    </section>
+
+    <NotesAndSources
+      sources={[cipi.source]}
+      method="UBOS’s Construction Input Price Index follows the prices builders pay for materials, fuel, labour, utilities and services, weighted by how much each costs in a typical project. We checked that materials, utilities, services and labour, weighted, reproduce UBOS’s overall index every month."
+    />
+  </div>
+</Base>

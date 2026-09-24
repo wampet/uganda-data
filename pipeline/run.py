@@ -3,12 +3,13 @@
     python run.py catalog [--refresh]   # index every file on ubos.org
     python run.py build   [--refresh]   # catalog + parse + write web/src/data
     python run.py production            # Production section only (energy, industry, ...)
+    python run.py indices               # house prices, construction costs, producer prices
 """
 
 import sys
 from collections import Counter
 
-from ubos import catalog, export, production
+from ubos import catalog, export, price_indices, production
 
 
 def main(argv: list[str]) -> None:
@@ -26,8 +27,11 @@ def main(argv: list[str]) -> None:
     elif cmd == "build":
         export.build(refresh=refresh)
         production.build()
+        price_indices.build()
     elif cmd == "production":
         production.build()
+    elif cmd == "indices":
+        price_indices.build()
     else:
         sys.exit(f"unknown command: {cmd}")
 

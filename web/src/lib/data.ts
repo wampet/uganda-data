@@ -204,6 +204,21 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
       title: 'Inflation: how fast are prices rising?',
       blurb: 'Monthly since 2017, by spending category, town and ~350 individual items.',
     },
+    {
+      href: '/economy/prices/house-prices/',
+      title: 'House prices in greater Kampala',
+      blurb: 'Quarterly since 2015/16, area by area: Wakiso, Kampala Central & Makindye, Nakawa, Kawempe & Rubaga.',
+    },
+    {
+      href: '/economy/prices/construction-costs/',
+      title: 'What it costs to build',
+      blurb: 'Cement, steel bars, sand, diesel, labour and more: monthly since 2017, for buildings and road works.',
+    },
+    {
+      href: '/economy/prices/producer-prices/',
+      title: 'Factory prices',
+      blurb: 'What factories and utilities charge, by industry, and how it compares with shop prices.',
+    },
   ],
 };
 

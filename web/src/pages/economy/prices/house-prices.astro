@@ -1,0 +1,84 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { fmtDate } from '../../../lib/data';
+import { housePrices, pct, RPPI_HEADLINE, rppi, rppiAreas } from '../../../lib/indices';
+
+const h = housePrices();
+const q = rppi.quarters;
+const yoyStart = rppi.yoy[RPPI_HEADLINE].findIndex((v) => v != null);
+
+const tiles = [
+  { label: 'Change in a year', value: pct(h.yoy), note: `greater Kampala, to ${h.latest}` },
+  { label: `Since ${q[0].split(' ')[0]}`, value: pct(h.sinceBase, 0), note: 'headline index' },
+  { label: 'Rising fastest', value: pct(h.since[0].change, 0), note: `${h.since[0].area}, since ${q[0].split(' ')[0]}` },
+  { label: 'Rising slowest', value: pct(h.since[h.since.length - 1].change, 0), note: `${h.since[h.since.length - 1].area}` },
+];
+---
+
+<Base title="House prices in Kampala" description={`${h.facts[0]} See house prices in greater Kampala since 2015/16, area by area.`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/economy/">Economy</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/economy/prices/">Prices & Inflation</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">House prices · updated {fmtDate(rppi.source.updated)}</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">House prices in greater Kampala</h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{h.facts[0]} {h.facts[1]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section class="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <Chart
+        id="rppi-areas"
+        title="House price index by area"
+        subtitle={`${rppi.base}: a value of 120 means prices are 20% higher than in 2015/16`}
+        height={360}
+        source={rppi.source}
+        spec={{
+          kind: 'line', digits: 1, x: q,
+          series: [
+            { name: 'Greater Kampala', data: rppi.index[RPPI_HEADLINE], color: 1 },
+            ...rppiAreas.map((a, i) => ({ name: a, data: rppi.index[a], color: i + 2 })),
+          ],
+        }}
+      />
+      <Chart
+        id="rppi-since"
+        title={`Change since ${q[0].split(' ')[0]}`}
+        subtitle={`By area, to ${h.latest}`}
+        height={360}
+        source={rppi.source}
+        spec={{ kind: 'bar', unit: '%', digits: 0, labelWidth: 170, categories: h.since.map((s) => s.area), series: [{ name: 'Change since 2015/16', data: h.since.map((s) => Math.round(s.change * 10) / 10) }] }}
+      />
+    </section>
+
+    <section class="mt-4">
+      <Chart
+        id="rppi-yoy"
+        title="How fast house prices are changing"
+        subtitle="Greater Kampala: % change on the same quarter a year earlier"
+        height={300}
+        source={rppi.source}
+        spec={{ kind: 'line', unit: '%', digits: 1, zeroLine: true, area: true, x: q.slice(yoyStart), series: [{ name: 'Annual change', data: rppi.yoy[RPPI_HEADLINE].slice(yoyStart), color: 1 }] }}
+      />
+    </section>
+
+    <NotesAndSources
+      sources={[rppi.source]}
+      method="UBOS’s Residential Property Price Index tracks prices of homes in greater Kampala only (Wakiso and the Kampala divisions), not the whole country. Quarter-to-quarter moves are noisy because relatively few homes are sold each quarter, so watch the longer trend. Our annual changes were checked against the rates UBOS publishes."
+    />
+  </div>
+</Base>

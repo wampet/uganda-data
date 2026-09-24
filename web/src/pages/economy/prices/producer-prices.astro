@@ -1,0 +1,72 @@
+---
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import NotesAndSources from '../../../components/NotesAndSources.astro';
+import { cpi, fmtDate, monthLabel } from '../../../lib/data';
+import { factoryVsShop, pct, ppi, PPI_TOP, producerPrices } from '../../../lib/indices';
+
+const p = producerPrices();
+const fs = factoryVsShop();
+---
+
+<Base title="Factory prices in Uganda" description={`${p.facts[0]} See producer prices by industry since 2016.`}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/economy/">Economy</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/economy/prices/">Prices & Inflation</a>
+    </nav>
+
+    <header class="pb-10 pt-6">
+      <p class="text-sm font-medium text-brand-ink">Producer prices · updated {fmtDate(ppi.source.updated)}</p>
+      <h1 class="mt-2 max-w-3xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Factory prices: {pct(p.yoy)} in a year</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">{p.facts[0]}</p>
+      <p class="mt-2 max-w-2xl text-ink-2">
+        Producer prices are what factories and utilities charge when goods leave the gate, before transport, shop margins
+        and taxes. They often move before shop prices do.
+      </p>
+    </header>
+
+    <section class="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <Chart
+        id="ppi-vs-cpi"
+        title="Factory prices and shop prices"
+        subtitle="% change on a year earlier: producer prices vs consumer prices (CPI)"
+        ranges
+        height={340}
+        source={ppi.source}
+        spec={{
+          kind: 'line', unit: '%', digits: 1, zeroLine: true, x: fs.months,
+          series: [
+            { name: 'Factory prices (PPI)', data: fs.ppi, color: 1 },
+            { name: 'Shop prices (CPI)', data: fs.cpi, color: 2 },
+          ],
+        }}
+      />
+      <Chart
+        id="ppi-industries"
+        title="By industry"
+        subtitle={`Change on a year earlier, ${monthLabel(p.latest)}`}
+        height={520}
+        source={ppi.source}
+        spec={{ kind: 'bar', unit: '%', digits: 1, labelWidth: 150, categories: p.ranked.map((x) => x.name), series: [{ name: 'Annual change', data: p.ranked.map((x) => x.yoy) }] }}
+      />
+    </section>
+
+    <section class="mt-4">
+      <Chart
+        id="ppi-index"
+        title="Producer price index"
+        subtitle={`${ppi.base}`}
+        ranges
+        height={300}
+        source={ppi.source}
+        spec={{ kind: 'line', digits: 1, x: ppi.months, series: [ppi.headline, ...PPI_TOP].map((k, i) => ({ name: k, data: ppi.series[k].index, color: i + 1 })) }}
+      />
+      <p class="mt-3 text-sm text-ink-3">{p.facts[1]}</p>
+    </section>
+
+    <NotesAndSources
+      sources={[ppi.source, cpi.source]}
+      method={`UBOS’s Producer Price Index for manufacturing and utilities, from ${monthLabel(ppi.months[0], true)}. Our annual changes were checked against the rates UBOS publishes for every month.`}
+    />
+  </div>
+</Base>
