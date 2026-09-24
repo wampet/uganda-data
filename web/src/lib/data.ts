@@ -157,6 +157,11 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
       blurb: 'The pay gap, schooling, young people out of work, life expectancy and who crime happens to.',
     },
   ],
+  ...Object.fromEntries(['nsi-income', 'human-assets', 'vulnerability'].map((t) => [t, [{
+    href: '/wellbeing/nsi-income/national-scorecard/',
+    title: 'Uganda’s national scorecard',
+    blurb: 'Progress on UBOS’s standard indicators: income, health and schooling, poverty in all its forms, roads and power.',
+  }]])),
   'government-finance': [
     {
       href: '/economy/government-finance/where-the-money-goes/',

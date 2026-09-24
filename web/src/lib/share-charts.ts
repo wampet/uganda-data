@@ -18,6 +18,7 @@ import * as EN from './environment';
 import * as BK from './banking';
 import * as CR from './crime';
 import * as GE from './gender';
+import * as WB from './wellbeing';
 
 export interface SharedChart {
   slug: string;
@@ -318,6 +319,17 @@ export const sharedCharts: SharedChart[] = [
     source: src(GF.sources.functions),
     page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
     topic: 'Economy',
+  },
+  {
+    slug: 'uganda-multidimensional-poverty',
+    title: 'Poor in several ways at once',
+    subtitle: `Multidimensional poverty by region, % of people, ${WB.mpi.year}`,
+    description: `${WB.facts()[1]} ${WB.facts()[2]}`,
+    spec: { kind: 'bar', unit: '%', digits: 0, categories: [...Object.entries(WB.mpi.regions).sort((a, b) => b[1] - a[1]).map(([r]) => r), 'Uganda'], series: [{ name: 'Poor in several ways', data: [...Object.entries(WB.mpi.regions).sort((a, b) => b[1] - a[1]).map(([, v]) => v), WB.mpi.national] }], highlight: ['Uganda'], labelWidth: 100 },
+    height: 360,
+    source: src(WB.sources.level2),
+    page: { href: '/wellbeing/nsi-income/national-scorecard/', label: 'More on the national scorecard' },
+    topic: 'Wellbeing',
   },
   {
     slug: 'uganda-pay-gap',

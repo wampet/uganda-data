@@ -16,6 +16,7 @@ import roadJson from '../data/road_safety.json';
 import envJson from '../data/environment.json';
 import prodJson from '../data/production.json';
 import censusJson from '../data/census.json';
+import wbJson from '../data/wellbeing.json';
 import { chartRows } from './chart-options';
 import { sharedCharts } from './share-charts';
 import { districts, indicators, national, source as censusSource } from './census';
@@ -66,6 +67,7 @@ export const datasets: Dataset[] = [
   ds('road-safety', 'Road safety', 'Road crashes, deaths and injuries by road user, vehicle, time and region.', '/people/crime/road-safety/', roadJson),
   ds('environment', 'Environment', 'Land cover, forest reserves, temperature by weather station and piped water supply.', '/environment/land/forests-land-and-climate/', envJson),
   ds('production', 'Production', 'Energy, factories, transport, tourism, mobile money and agriculture.', '/production/', prodJson),
+  ds('wellbeing', 'National standard indicators', 'UBOS’s scorecard for lower-middle-income status, multidimensional poverty, electricity access and more.', '/wellbeing/nsi-income/national-scorecard/', wbJson),
   ds('districts', 'Census 2024 by district', 'Indicators for every district, city and sub-region from the 2024 census.', '/places/districts/', censusJson),
 ];
 

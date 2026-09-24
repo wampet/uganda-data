@@ -1066,6 +1066,133 @@ def build_crime(records: list[dict]) -> None:
     })
 
 
+def build_wellbeing(records: list[dict]) -> None:
+    """UBOS's National Standard Indicators (NSI): the scorecard for graduating to lower-middle-income status."""
+    import re
+
+    from .parsers import wide
+
+    def clean(v):
+        return " ".join(str(v).replace("\xa0", " ").split()) if v is not None else ""
+
+    # ---- Level 1: three "graduation criteria", 2014/15-2021/22 --------------------
+    s1 = _dataset(records, "The National Standard Indicators (NSI) Framework - Level 1")
+    rows = [r for r in wide.load(get_file(s1["url"])) if any(v is not None for v in r)]
+    h = next(i for i, r in enumerate(rows) if sum(1 for c in r if wide.year_of(c)) >= 5)
+    years = [wide.year_of(c) for c in rows[h][4:12]]
+    if years[0] != "2014/15" or None in years:
+        raise ValueError(f"wellbeing: unexpected NSI Level 1 years {years}")
+    level1 = {}
+    for r in rows[h + 1:]:
+        label = clean(r[0])
+        if label and len(r) > 11:
+            level1[label] = {"unit": clean(r[1]), "periodicity": clean(r[3]), "values": [wide.num(v) for v in r[4:12]]}
+
+    # (criterion, label prefix in the sheet, plain name, unit shown, better when)
+    WANT = [
+        ("income", "1.1.1:", "GDP per person", "US$", "higher"),
+        ("income", "1.1.2:", "Economic growth", "%", None),  # swings yearly: no verdict
+        ("income", "1.1.4:", "People below the national poverty line", "%", "lower"),
+        ("income", "1.1.5:", "Income inequality (Gini, 0 = equal)", "", "lower"),
+        ("income", "a) Agriculture", "Agriculture’s share of GDP", "%", None),
+        ("income", "b) Manufacturing", "Manufacturing’s share of GDP", "%", None),
+        ("assets", "2.1.1:", "Literacy, age 10+", "%", "higher"),
+        ("assets", "2.1.2", "Average years of schooling", "years", "higher"),
+        ("assets", "b) :Secondary", "Secondary school enrolment (gross)", "%", "higher"),
+        ("assets", "4.1.2:", "Stunted children under 5", "%", "lower"),
+        ("assets", "5.1.3:", "Children per woman", "", None),
+        ("assets", "6.1.1:", "Child deaths before age 5 (per 1,000 births)", "", "lower"),
+        ("assets", "5.1.5:", "Mothers’ deaths (per 100,000 births)", "", "lower"),
+        ("assets", "5.1.8:", "Workers in farming, forestry and fishing", "%", None),
+        ("vulnerability", "9.1.2:", "Exports as a share of GDP", "%", None),  # swings yearly
+        ("vulnerability", "11.1.1:", "Paved national roads", "km", "higher"),
+        ("vulnerability", "11.1.2:", "Share of national roads that are paved", "%", "higher"),
+        ("vulnerability", "11.1.5:", "Households with electricity for lighting", "%", "higher"),
+        ("vulnerability", "11.1.7: Safe water coverage :a) Urban", "Safe water coverage, towns", "%", "higher"),
+        ("vulnerability", "11.1.7: Safe water coverage; b) Rural", "Safe water coverage, rural", "%", "higher"),
+    ]
+    indicators = []
+    for crit, prefix, name, unit, better in WANT:
+        hits = [(k, v) for k, v in level1.items() if k.startswith(prefix)]
+        if len(hits) != 1:
+            raise ValueError(f"wellbeing: expected one NSI row starting '{prefix}', found {len(hits)}")
+        label, row = hits[0]
+        vals = row["values"]
+        # Survey-based rows repeat the last survey's value until the next one;
+        # keep only the years a new value appears, so no false flat trend is drawn.
+        survey = not row["periodicity"].lower().startswith("annual")
+        points = []
+        for y, v in zip(years, vals):
+            if v is None or (survey and points and points[-1][1] == v):
+                continue
+            points.append((y, v))
+        if not points:
+            raise ValueError(f"wellbeing: no values for '{prefix}'")
+        indicators.append({"criterion": crit, "name": name, "official": label, "unit": unit, "better": better,
+                           "periodicity": row["periodicity"], "points": points})
+
+    gdp_pc = next(i for i in indicators if i["name"] == "GDP per person")
+    roads = next(i for i in indicators if i["name"] == "Paved national roads")
+
+    # ---- Level 2: a few checkable extras ------------------------------------------
+    s2 = _dataset(records, "The National Standard Indicators (NSI) Framework - Level 2")
+    rows2 = [r for r in wide.load(get_file(s2["url"])) if any(v is not None for v in r)]
+    def block(start: str) -> dict:
+        """Rows of one Level 2 indicator: {disaggregation: [2019/20, 2020/21, 2021/22]}."""
+        i = next(i for i, r in enumerate(rows2) if clean(r[2]).lower().startswith(start.lower()))
+        out = {clean(rows2[i][3]) or "National": [wide.num(v) for v in rows2[i][8:11]]}
+        for r in rows2[i + 1:]:
+            if clean(r[2]) or not clean(r[3]):
+                break
+            out[clean(r[3])] = [wide.num(v) for v in r[8:11]]
+        return out
+
+    mpi = block("Proportion of men, women and children of all ages living in poverty")
+    mpi_regions = {k: round(100 * v[0], 1) for k, v in mpi.items() if k in ("Central", "Eastern", "Northern", "Western")}
+    if len(mpi_regions) != 4:
+        raise ValueError("wellbeing: multidimensional poverty regions missing")
+    mpi_national = round(100 * mpi["National"][0], 1)
+
+    elec = block("Households with access to electricity")
+    parts = {k: v[-1] for k, v in elec.items() if k != "Total electricity"}
+    if abs(sum(parts.values()) - elec["Total electricity"][-1]) > 0.5:
+        raise ValueError("wellbeing: electricity sources don't add up to the total")
+
+    parliament = block("Proportion of seats held by women")["National"]
+    tax = block("Tax Revenue to GDP ratio")["National"]
+    health_ins = block("Health insurance coverage")["National"]
+
+    _write("wellbeing.json", {
+        "sources": {"level1": _src(s1), "level2": _src(s2)},
+        "years": years,
+        "indicators": indicators,
+        "gdp_per_person": {"years": years, "values": [dict(gdp_pc["points"]).get(y) for y in years]},
+        "paved_roads": {"years": years, "values": [dict(roads["points"]).get(y) for y in years]},
+        "level2_years": ["2019/20", "2020/21", "2021/22"],
+        "multidimensional_poverty": {"year": "2019/20", "national": mpi_national, "regions": mpi_regions},
+        "electricity": {
+            # Values repeat across years; label them with the year they first appear.
+            "year": ["2019/20", "2020/21", "2021/22"][max(next(i for i, x in enumerate(v) if x == v[-1]) for v in elec.values())],
+            "sources": {k.strip(): v for k, v in parts.items()},
+            "total": elec["Total electricity"][-1],
+        },
+        "women_in_parliament": parliament,
+        "tax_to_gdp": tax,
+        "health_insurance": health_ins,
+        "notes": [
+            "The National Standard Indicators are the numbers Uganda uses to track its goal of becoming a lower-middle-income "
+            "country. UBOS groups them into three tests: income, human assets (health and education) and economic vulnerability.",
+            "Many indicators come from surveys held every few years. UBOS repeats the last survey’s value in the years between; "
+            "this page shows each value only for the year it first appears.",
+            "The scorecard ends in 2021/22. Newer figures for some indicators (GDP, population, poverty) are on the story pages.",
+            "“Poverty in all its forms” (multidimensional poverty) counts people lacking several basics such as schooling, "
+            "health, housing and services, not just income.",
+            "UBOS’s Level 2 table has visible errors (some rates written as fractions, others as percentages), so only a few "
+            "of its figures are used here.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -1083,3 +1210,4 @@ def build(refresh: bool = False) -> None:
     build_environment(records)
     build_banking(records)
     build_crime(records)
+    build_wellbeing(records)
