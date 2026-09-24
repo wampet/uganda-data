@@ -122,6 +122,7 @@ const imageUrl = image ? new URL(image, Astro.site).href : undefined;
             An independent project that turns the Uganda Bureau of Statistics’ spreadsheets and reports into charts anyone can read.
             Every number links back to its official UBOS source.
           </p>
+          <p class="mt-3"><a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/api/">Data API: download everything as JSON or CSV</a></p>
         </div>
         {sections.slice(0, 4).map((s) => (
           <div>

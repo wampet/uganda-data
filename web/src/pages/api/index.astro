@@ -1,0 +1,70 @@
+---
+import Base from '../../layouts/Base.astro';
+import { API, LICENCE, datasets, tables } from '../../lib/api';
+
+const charts = tables.filter((t) => t.page.startsWith('/charts/'));
+const core = tables.filter((t) => !t.page.startsWith('/charts/'));
+const code = (s: string) => s;
+---
+
+<Base title="Data API" description="Free JSON and CSV downloads of every dataset on Uganda in Data, straight from UBOS figures.">
+  <div class="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+    <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">Data API</h1>
+    <p class="mt-3 text-lg text-ink-2">
+      Every number on this site is available as plain JSON or CSV, free to use. No key or sign-up is needed. Files are rebuilt
+      whenever the site updates.
+    </p>
+    <p class="mt-2 text-sm text-ink-3">{LICENCE}</p>
+
+    <h2 class="mt-10 text-xl font-semibold">Start here</h2>
+    <p class="mt-2 text-ink-2">The index lists every dataset and table, with links to each file and to the original UBOS sources.</p>
+    <pre class="card mt-3 overflow-x-auto p-4 text-sm"><code>{code(`GET ${API}/index.json`)}</code></pre>
+    <ul class="mt-3 list-disc space-y-1 pl-5 text-ink-2">
+      <li><code class="text-ink">{API}/datasets/&lt;id&gt;.json</code>: a whole dataset as the site uses it, with its sources.</li>
+      <li><code class="text-ink">{API}/tables/&lt;id&gt;.csv</code>: a tidy table, ready for Excel or Google Sheets.</li>
+      <li><code class="text-ink">{API}/tables/&lt;id&gt;.json</code>: the same table as <code>columns</code> and <code>rows</code>.</li>
+    </ul>
+
+    <h2 class="mt-10 text-xl font-semibold">Datasets ({datasets.length})</h2>
+    <ul class="card mt-3 divide-y divide-line">
+      {datasets.map((d) => (
+        <li class="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-3">
+          <a class="font-medium hover:underline" href={d.page}>{d.title}</a>
+          <span class="min-w-0 flex-1 text-sm text-ink-2">{d.description}</span>
+          <a class="text-sm text-ink underline decoration-dotted underline-offset-2" href={`${API}/datasets/${d.id}.json`}>JSON</a>
+        </li>
+      ))}
+    </ul>
+
+    <h2 class="mt-10 text-xl font-semibold">Tables</h2>
+    <ul class="card mt-3 divide-y divide-line">
+      {core.map((t) => (
+        <li class="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-3">
+          <span class="font-medium">{t.title}</span>
+          <span class="min-w-0 flex-1 text-sm text-ink-2">{t.description}</span>
+          <a class="text-sm text-ink underline decoration-dotted underline-offset-2" href={`${API}/tables/${t.id}.csv`}>CSV</a>
+          <a class="text-sm text-ink underline decoration-dotted underline-offset-2" href={`${API}/tables/${t.id}.json`}>JSON</a>
+        </li>
+      ))}
+    </ul>
+
+    <h3 class="mt-8 font-semibold">Chart data ({charts.length})</h3>
+    <p class="mt-1 text-sm text-ink-2">The numbers behind each <a class="underline decoration-dotted underline-offset-2" href="/charts/">shareable chart</a>.</p>
+    <ul class="card mt-3 divide-y divide-line">
+      {charts.map((t) => (
+        <li class="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-2.5">
+          <a class="min-w-0 flex-1 hover:underline" href={t.page}>{t.title}</a>
+          <a class="text-sm text-ink underline decoration-dotted underline-offset-2" href={`${API}/tables/${t.id}.csv`}>CSV</a>
+          <a class="text-sm text-ink underline decoration-dotted underline-offset-2" href={`${API}/tables/${t.id}.json`}>JSON</a>
+        </li>
+      ))}
+    </ul>
+
+    <h2 class="mt-10 text-xl font-semibold">Good to know</h2>
+    <ul class="mt-2 list-disc space-y-1.5 pl-5 text-ink-2">
+      <li>Files can be fetched from any website (CORS is open) and are cached for up to a day.</li>
+      <li>Field names inside <code>/datasets/</code> may change as the site grows; <code>/tables/</code> are the stable, tidy format. Breaking changes will get a new version (<code>/api/v2/</code>).</li>
+      <li>Where UBOS’s own tables contain errors, the site’s pages explain what was done; see each page’s “About these numbers” section.</li>
+    </ul>
+  </div>
+</Base>

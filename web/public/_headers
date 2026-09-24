@@ -20,3 +20,9 @@
 # Map shapes change only when the pipeline runs: cache a day, revalidate after.
 /geo/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+# Data API: readable from any site, refreshed daily.
+/api/v1/*
+  Access-Control-Allow-Origin: *
+  Cross-Origin-Resource-Policy: cross-origin
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
