@@ -5,7 +5,7 @@ import { census2024 } from './population';
 interface Src { title: string; url: string; updated: string | null }
 
 const raw = govJson as unknown as {
-  sources: Record<'functions' | 'spending' | 'revenue' | 'tins', Src>;
+  sources: Record<'functions' | 'spending' | 'revenue' | 'tins' | 'history', Src>;
   years: string[];
   functions: { name: string; values: number[] }[];
   total_spending: number[];
@@ -13,11 +13,21 @@ const raw = govJson as unknown as {
   revenue: Record<string, number[]>;
   total_revenue: number[];
   tins_individuals: { year: string; issued: number }[];
+  history: {
+    years: string[]; revenue: number[]; taxes: number[]; grants: number[]; expense: number[]; employees: number[];
+    goods_services: number[]; interest: number[]; investment: number[]; borrowing: number[];
+    borrowing_domestic: number[]; borrowing_foreign: number[];
+  };
+  tax_mix: { years: string[]; types: Record<string, number[]>; total: number[]; paye: number[]; fuel_excise: number[] };
   notes: string[];
 };
 
 export const { sources, years, notes } = raw;
 export const tins = raw.tins_individuals;
+/** Central government, UGX billion, 2012/13 onwards. */
+export const history = raw.history;
+export const taxMix = raw.tax_mix;
+export const tn = (bn: number, d = 1) => `UGX ${(bn / 1000).toFixed(d)} trillion`;
 const L = years.length - 1;
 export const year = years[L];
 export const prevYear = years[L - 1];
@@ -53,6 +63,18 @@ export const byFunction = raw.functions
 
 export const split = Object.entries(raw.spending_split).map(([k, v]) => ({ name: k, value: v[L], share: (100 * v[L]) / spending }));
 export const revenueParts = Object.entries(raw.revenue).map(([k, v]) => ({ name: k.replace(' revenue', ''), value: v[L] }));
+
+export function historyFacts() {
+  const h = history, n = h.years.length - 1;
+  const t = taxMix, tl = t.years.length - 1;
+  const top = Object.entries(t.types).sort((a, b) => b[1][tl] - a[1][tl])[0];
+  return [
+    `Interest on government debt rose from ${tn(h.interest[0])} in ${h.years[0]} to ${tn(h.interest[n])} in ${h.years[n]}, ${(h.interest[n] / h.interest[0]).toFixed(1)} times as much.`,
+    ...(h.interest[n] > h.employees[n] ? [`By ${h.years[n]} central government spent more on interest (${tn(h.interest[n])}) than on paying all its employees (${tn(h.employees[n])}).`] : []),
+    `Central government borrowed ${tn(h.borrowing[n])} in ${h.years[n]} to cover the gap between what it collected and what it spent, up from ${tn(h.borrowing[0])} in ${h.years[0]}.`,
+    `${top[0].replace(/ \(.*\)$/, '')} brought in the most tax in ${t.years[tl]}: ${tn(top[1][tl])} of ${tn(t.total[tl])}. Excise duty on fuel alone raised ${tn(t.fuel_excise[tl])}.`,
+  ];
+}
 
 export function facts() {
   const edu = byFunction.find((f) => f.official === 'Education')!;

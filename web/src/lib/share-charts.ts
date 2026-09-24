@@ -333,6 +333,20 @@ export const sharedCharts: SharedChart[] = [
     topic: 'People',
   },
   {
+    slug: 'uganda-interest-vs-salaries',
+    title: 'Uganda now pays more in interest than in salaries',
+    subtitle: 'Central government, UGX trillion a year',
+    description: `${GF.historyFacts()[0]} ${GF.historyFacts()[1] ?? ''}`.trim(),
+    spec: { kind: 'line', unit: ' tn', digits: 1, x: GF.history.years, yMin: 0, series: [
+      { name: 'Interest on debt', data: GF.history.interest.map((v) => v / 1000), color: 2, points: true },
+      { name: 'Employee pay', data: GF.history.employees.map((v) => v / 1000), color: 1, points: true },
+    ] },
+    height: 400,
+    source: src(GF.sources.history),
+    page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
+    topic: 'Economy',
+  },
+  {
     slug: 'uganda-government-spending',
     title: 'Where Uganda’s government spends its money',
     subtitle: `Out of every UGX 100,000 spent, ${GF.year}`,

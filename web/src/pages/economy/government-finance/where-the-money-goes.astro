@@ -3,7 +3,7 @@ import { safeJson } from '../../../lib/json';
 import Base from '../../../layouts/Base.astro';
 import Chart from '../../../components/Chart.astro';
 import {
-  byFunction, facts, gap, notes, perPerson, prevYear, revenue, revenueParts, sources, spending, split, tins, trillion,
+  byFunction, facts, gap, history, historyFacts, notes, taxMix, perPerson, prevYear, revenue, revenueParts, sources, spending, split, tins, trillion,
   year,
 } from '../../../lib/government';
 
@@ -102,6 +102,58 @@ const changes = byFunction
         source={sources.tins}
         spec={{ kind: 'line', unit: '', digits: 0, x: tins.map((t) => t.year), yMin: 0, series: [{ name: 'TINs issued', data: tins.map((t) => t.issued), color: 1, points: true }] }}
       />
+    </section>
+
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Ten years of government finances</h2>
+      <ul class="mt-3 max-w-3xl list-disc space-y-1 pl-5 text-ink-2">
+        {historyFacts().map((f) => <li>{f}</li>)}
+      </ul>
+      <div class="mt-5 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="interest"
+          share="uganda-interest-vs-salaries"
+          title="Interest now costs more than salaries"
+          subtitle="Central government, UGX trillion a year"
+          height={340}
+          source={sources.history}
+          spec={{ kind: 'line', unit: ' tn', digits: 1, x: history.years, yMin: 0, series: [
+            { name: 'Interest on debt', data: history.interest.map((v) => v / 1000), color: 2, points: true },
+            { name: 'Employee pay', data: history.employees.map((v) => v / 1000), color: 1, points: true },
+          ] }}
+        />
+        <Chart
+          id="borrowing"
+          title="New debt, from abroad and at home"
+          subtitle="Net new debt taken on by central government, UGX trillion (below zero: more repaid than borrowed)"
+          height={340}
+          source={sources.history}
+          spec={{ kind: 'line', unit: ' tn', digits: 1, x: history.years, zeroLine: true, series: [
+            { name: 'From abroad', data: history.borrowing_foreign.map((v) => v / 1000), color: 1, points: true },
+            { name: 'At home', data: history.borrowing_domestic.map((v) => v / 1000), color: 3, points: true },
+          ] }}
+        />
+        <Chart
+          id="revenue-spending"
+          title="What government collects and spends"
+          subtitle="Central government, UGX trillion a year"
+          height={340}
+          source={sources.history}
+          spec={{ kind: 'line', unit: ' tn', digits: 1, x: history.years, yMin: 0, series: [
+            { name: 'Revenue (taxes and grants)', data: history.revenue.map((v) => v / 1000), color: 1, points: true },
+            { name: 'Spending and investment', data: history.expense.map((v, i) => (v + history.investment[i]) / 1000), color: 2, points: true },
+          ] }}
+        />
+        <Chart
+          id="tax-mix"
+          title="Where taxes come from"
+          subtitle="Central government tax revenue by type, UGX trillion"
+          height={340}
+          source={sources.history}
+          spec={{ kind: 'bar', stacked: true, unit: ' tn', digits: 1, categories: taxMix.years, series: Object.entries(taxMix.types).map(([k, v], i) => ({ name: k, data: v.map((x) => x / 1000), color: i + 1 })), labelWidth: 60 }}
+        />
+      </div>
     </section>
 
     <section class="mt-10 grid gap-4 md:grid-cols-2">

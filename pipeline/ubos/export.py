@@ -821,6 +821,96 @@ def build_health(records: list[dict]) -> None:
     })
 
 
+def _government_history(records: list[dict]) -> dict:
+    """Ten years of central government finance (GFS, UGX billion) and where taxes come from."""
+    from .parsers import wide
+
+    src = _dataset(records, "Government Finance Statistics - Central Government and Local Government")
+    wb = openpyxl.load_workbook(get_file(src["url"]), data_only=True, read_only=True)
+    ws = next(w for w in wb.worksheets if w.title.lower().startswith("central"))
+    rows = [list(r) for r in ws.iter_rows(values_only=True) if any(v not in (None, "") for v in r)]
+    lab = lambda v: " ".join(str(v).split()).rstrip(":") if v is not None else ""
+
+    # Table 4.4 A: the summary (UGX billion); it ends where Table 4.4 B starts.
+    a0 = next(i for i, r in enumerate(rows) if lab(r[0]).startswith("Table 4.4 A"))
+    b0 = next(i for i, r in enumerate(rows) if lab(r[0]).startswith("Table 4.4 B"))
+    years = [wide.year_of(c) for c in rows[a0 + 1][1:11]]
+    if None in years or years[0] != "2012/13":
+        raise ValueError(f"government: unexpected GFS years {years}")
+    summary = {}
+    for r in rows[a0 + 2:b0]:
+        name = lab(r[0])
+        if name and name not in summary:  # first occurrence (e.g. revenue "Grants", not expense "Grants")
+            summary[name] = [wide.num(v) or 0.0 for v in r[1:11]]
+    need = ["Revenue", "Taxes", "Grants", "Other revenue", "Expense", "Compensation of employees",
+            "Purchase of goods and services", "Interest", "Net Acquisition of Nonfinancial Assets", "Net lending / borrowing"]
+    missing = [n for n in need if n not in summary]
+    if missing:
+        raise ValueError(f"government: GFS summary rows missing: {missing}")
+    for i, y in enumerate(years):
+        rev = summary["Taxes"][i] + summary["Grants"][i] + summary["Other revenue"][i]
+        if abs(rev - summary["Revenue"][i]) > 3:
+            raise ValueError(f"government: GFS revenue parts don't add up in {y}")
+        bal = summary["Revenue"][i] - summary["Expense"][i] - summary["Net Acquisition of Nonfinancial Assets"][i]
+        if abs(bal - summary["Net lending / borrowing"][i]) > 25:
+            raise ValueError(f"government: GFS borrowing doesn't match revenue minus spending in {y}")
+    # Borrowing split (the second "Domestic"/"Foreign" pair, under "Net incurrence of liabilities").
+    li = next(i for i in range(a0, b0) if lab(rows[i][0]).startswith("Net incurrence of liabilities"))
+    dom = [wide.num(v) or 0.0 for v in rows[li + 1][1:11]]
+    fgn = [wide.num(v) or 0.0 for v in rows[li + 2][1:11]]
+    if not (lab(rows[li + 1][0]) == "Domestic" and lab(rows[li + 2][0]) == "Foreign"):
+        raise ValueError("government: borrowing split rows not where expected")
+
+    # Table 4.4 B: tax revenue by type (UGX million -> billion).
+    tb = {}
+    for r in rows[b0 + 2:]:
+        name = lab(r[0])
+        if name.startswith("Table"):
+            break
+        if name and name not in tb:
+            tb[name] = [(wide.num(v) or 0.0) / 1000 for v in r[1:11]]
+    def pick(prefix):
+        k = next((k for k in tb if k.startswith(prefix)), None)
+        if k is None:
+            raise ValueError(f"government: tax row '{prefix}' missing")
+        return tb[k]
+    taxes = {
+        "Income & profit taxes (incl. PAYE)": pick("(a) Taxes on Income"),
+        "VAT": pick("(i) VAT"),
+        "Excise duties (fuel, drinks, etc.)": pick("(ii) Excise"),
+        "Import duties": pick("(e) Other taxes on International trade"),
+        "Other taxes": [a + b + c for a, b, c in zip(pick("(b) Taxes on property"), pick("(d) Taxes on permission"), pick("(f) Other Taxes"))],
+    }
+    total_tax = pick("1. Central Government Taxes")
+    for i, y in enumerate(years):
+        if abs(sum(v[i] for v in taxes.values()) - total_tax[i]) > 2:
+            raise ValueError(f"government: tax types don't add up to total taxes in {y}")
+
+    return {
+        "source": _src(src),
+        "history": {
+            "years": years,
+            "revenue": summary["Revenue"], "taxes": summary["Taxes"], "grants": summary["Grants"],
+            "expense": summary["Expense"], "employees": summary["Compensation of employees"],
+            "goods_services": summary["Purchase of goods and services"], "interest": summary["Interest"],
+            "investment": summary["Net Acquisition of Nonfinancial Assets"],
+            "borrowing": [-v for v in summary["Net lending / borrowing"]],
+            "borrowing_domestic": dom, "borrowing_foreign": fgn,
+        },
+        "tax_mix": {"years": years, "types": taxes, "total": total_tax,
+                    "paye": pick("PAYE"), "fuel_excise": pick("Petroleum")},
+        "notes": [
+            "The ten-year history is central government only (UBOS Government Finance Statistics, current shillings). "
+            "The spending-by-purpose charts above also include local governments.",
+            "Borrowing is net lending/borrowing: revenue minus current spending minus investment in roads, buildings and "
+            "other assets.",
+            "The tax breakdown comes from a more detailed UBOS table whose total differs slightly from the summary.",
+            "In 2015/16 about UGX 0.8 trillion appears as excise duty on “other imports” instead of import duty, which looks "
+            "like a one-year classification change.",
+        ],
+    }
+
+
 def build_government(records: list[dict]) -> None:
     def rows_of(r):
         wb = openpyxl.load_workbook(get_file(r["url"]), data_only=True, read_only=True)
@@ -890,8 +980,12 @@ def build_government(records: list[dict]) -> None:
     trows = rows_of(s_tin)
     tins = [{"year": label(r[0]), "issued": r[1]} for r in trows if label(r[0])[:2] == "20" and "/" in label(r[0])]
 
+    hist = _government_history(records)
     _write("government.json", {
-        "sources": {k: _src(v) for k, v in {"functions": s_fn, "spending": s_exp, "revenue": s_rev, "tins": s_tin}.items()},
+        "sources": {k: _src(v) for k, v in {"functions": s_fn, "spending": s_exp, "revenue": s_rev, "tins": s_tin}.items()}
+        | {"history": hist["source"]},
+        "history": hist["history"],
+        "tax_mix": hist["tax_mix"],
         "unit": "million UGX",
         "years": [y for _, y in years],
         "functions": functions,
@@ -905,6 +999,7 @@ def build_government(records: list[dict]) -> None:
             "“General public services” is the international (COFOG) heading for running government itself, including interest on public debt.",
             "Between 2022/23 and 2023/24 most development spending moved from “Defence” to “Public order and safety”, which looks like a change of classification rather than a real shift.",
             "In UBOS’s revenue table the 2023/24 local government figure sits one row below its label; we read it from there.",
+            *hist["notes"],
         ],
     })
 
