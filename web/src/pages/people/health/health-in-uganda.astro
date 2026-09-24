@@ -4,7 +4,8 @@ import Base from '../../../layouts/Base.astro';
 import Chart from '../../../components/Chart.astro';
 import {
   budgetShare, censusInsurance, censusNets, facilities, facts, fertility, hiv, infant, maternal, nets, notes, shortSurvey,
-  sources, spending, stunting, teen, under5, vaccination,
+  sources, spending, stunting, teen, under5, vaccination, under5Causes, cancer, staffingLevels, staffingTotal, staffingYear,
+  births, registeredPct,
 } from '../../../lib/health';
 
 const allFacts = facts();
@@ -154,6 +155,49 @@ const tiles = [
           height={280}
           source={sources.facilities}
           spec={{ kind: 'line', unit: '', digits: 0, x: facilities.rows.map((r) => r.year), yMin: 0, series: facilities.columns.map((c, i) => ({ name: c, data: facilities.rows.map((r) => r.values[i]), color: i + 1, points: true })) }}
+        />
+      </div>
+    </section>
+
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">The health system</h2>
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="staffing"
+          share="uganda-health-worker-gap"
+          title="Too few health workers where people need them most"
+          subtitle={`% of approved posts that are filled, public facilities, ${staffingYear}`}
+          height={320}
+          source={sources.staffing}
+          spec={{ kind: 'bar', unit: '%', digits: 0, categories: [...staffingLevels.map((l) => l.name), 'All public facilities'], series: [{ name: 'Posts filled', data: [...staffingLevels.map((l) => l.pct), (100 * staffingTotal.filled) / staffingTotal.approved] }], highlight: ['All public facilities'], labelWidth: 220 }}
+        />
+        <Chart
+          id="under5-causes"
+          title="What kills young children in hospital"
+          subtitle="% of deaths of children under 5 in hospital, by cause"
+          height={320}
+          source={sources.under5_causes}
+          spec={{ kind: 'line', unit: '%', digits: 0, x: under5Causes.years.map((y) => y.year), yMin: 0, series: under5Causes.causes.map((c, i) => ({ name: c, data: under5Causes.years.map((y) => y.values[i]), color: i + 1, points: true })) }}
+        />
+        <Chart
+          id="births"
+          title="Many births are never registered"
+          subtitle="Births notified and registered"
+          height={300}
+          source={sources.births}
+          spec={{ kind: 'line', unit: '', digits: 0, x: births.years, yMin: 0, series: [
+            { name: 'Notified', data: births.notified, color: 1, points: true },
+            { name: 'Registered', data: births.registered, color: 2, points: true },
+          ] }}
+        />
+        <Chart
+          id="cancer"
+          title="Cancer cases recorded"
+          subtitle="UBOS “cancer burden” totals, by financial year (see notes)"
+          height={300}
+          source={sources.cancer}
+          spec={{ kind: 'bar', unit: '', digits: 0, categories: cancer.map((c) => c.year), series: [{ name: 'Cases', data: cancer.map((c) => c.cases) }], labelWidth: 70 }}
         />
       </div>
     </section>

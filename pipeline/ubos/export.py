@@ -568,6 +568,79 @@ def build_jobs(records: list[dict]) -> None:
     })
 
 
+def _health_extra(records: list[dict]) -> dict:
+    """Health system tables: under-5 causes of death, cancer, health workers, birth registration."""
+    from .parsers import wide
+
+    def rows_of(title_start):
+        src = _dataset(records, title_start)
+        return src, [r for r in wide.load(get_file(src["url"])) if any(v not in (None, "") for v in r)]
+
+    # Leading causes of under-5 deaths in hospital (% of deaths), by financial year.
+    s_u5c, rows = rows_of("Top four Leading causes of under 5")
+    causes = [str(c).strip().capitalize() for c in rows[1][1:5]]
+    u5c = [{"year": str(r[0]).strip(), "values": [wide.num(v) for v in r[1:5]]} for r in rows[2:] if wide.year_of(r[0])]
+    # The latest year is much lower for every cause at once; keep it, but say so.
+    last, prev = u5c[-1], u5c[-2]
+    all_lower = all(a < b for a, b in zip(last["values"], prev["values"]))
+
+    # "Cancer burden": four yearly totals, no definition given.
+    s_can, rows = rows_of("Trends in cancer Burden")
+    cancer = [{"year": wide.year_of(y), "cases": wide.num(v)} for y, v in zip(rows[1], rows[2]) if wide.year_of(y)]
+
+    # Health workers: approved vs filled posts by facility level.
+    s_hr, rows = rows_of("Human Resources for Health posts approved, filled by year and public health facility")
+    years = [wide.year_of(c) for c in rows[1] if wide.year_of(c)]
+    cols = [j for j, c in enumerate(rows[1]) if wide.year_of(c)]
+    hr = {}
+    for r in rows[3:]:
+        name = " ".join(str(r[0]).split()) if r[0] else ""
+        if not name or name.lower().startswith("source"):
+            continue
+        vals = [(wide.num(r[j]), wide.num(r[j + 1])) for j in cols]
+        if all(a is None for a, _ in vals):
+            continue
+        hr[name] = [{"approved": a, "filled": f} for a, f in vals]
+    total = hr["Grand Total"]
+    levels = ["Subtotal - National level", "Subtotal – District level"]
+    for i, y in enumerate(years):
+        parts = [hr[k][i] for k in hr if k.lower().startswith("subtotal")]
+        if abs(sum(p["approved"] for p in parts) - total[i]["approved"]) > 2:
+            raise ValueError(f"health: health-worker subtotals don't add up to the grand total in {y}")
+    keep = ["Health Centre II", "Health Centre III", "Health Centre IV", "General Hospitals", "Regional Referral Hospitals",
+            "Mulago National Referral Hospital"]
+    staffing = {"years": years, "total": total, "levels": {k: hr[k] for k in keep if k in hr}}
+    if len(staffing["levels"]) != len(keep):
+        raise ValueError("health: some health-worker facility levels are missing")
+
+    # Births notified vs registered.
+    s_birth, rows = rows_of("Birth Notification and Registration")
+    byears = [wide.year_of(c) for c in rows[1][1:] if wide.year_of(c)]
+    notified = [wide.num(v) for v in rows[2][1:1 + len(byears)]]
+    registered = [wide.num(v) for v in rows[3][1:1 + len(byears)]]
+
+    return {
+        "sources": {"under5_causes": _src(s_u5c), "cancer": _src(s_can), "staffing": _src(s_hr), "births": _src(s_birth)},
+        "data": {
+            "under5_causes": {"causes": causes, "years": u5c},
+            "cancer": cancer,
+            "staffing": staffing,
+            "births": {"years": byears, "notified": notified, "registered": registered},
+        },
+        "notes": [
+            "Causes of death for children under 5 are shares of deaths in hospital."
+            + (f" In {last['year']} every cause is much lower than in {prev['year']}, which may reflect a change in how the "
+               "figures were measured rather than fewer deaths." if all_lower else ""),
+            "UBOS gives only yearly totals for “cancer burden”, without saying how cases are counted; the fall in 2017/18 "
+            "may reflect reporting rather than fewer cancers.",
+            "Health-worker figures are posts in public health facilities; “filled” can exceed “approved” where extra staff are "
+            "posted.",
+            "Birth notification means a health facility or local leader recorded the birth; registration means it was "
+            "entered in the civil register and a certificate can be issued.",
+        ],
+    }
+
+
 def build_health(records: list[dict]) -> None:
     def read(title_start, sheet=None):
         r = _dataset(records, title_start)
@@ -604,11 +677,13 @@ def build_health(records: list[dict]) -> None:
     if "allocation" not in s_budget["url"].lower():
         raise ValueError("health: budget-share file no longer points at the allocation table; re-check its contents")
 
+    extra = _health_extra(records)
     _write("health.json", {
         "sources": {k: _src(v) for k, v in {
             "under5": s_u5, "infant": s_imr, "fertility": s_tfr, "maternal": s_mat, "stunting": s_stunt,
             "vaccination": s_vacc, "teen": s_teen, "nets": s_nets, "hiv": s_hiv, "spending": s_spend,
-            "facilities": s_fac, "budget": s_budget}.items()},
+            "facilities": s_fac, "budget": s_budget}.items()} | extra["sources"],
+        **extra["data"],
         "under5_mortality": series(u5),
         "infant_mortality": series(imr),
         "fertility": series(tfr),
@@ -629,6 +704,7 @@ def build_health(records: list[dict]) -> None:
             "Four of these UBOS files open on an internal indicator list; the figures are on the last sheet of each file.",
             "UBOS lists the health budget table under the title “Countrywide TB detection rate”; the file is the health "
             "sector’s share of the government budget, and is shown as that.",
+            *extra["notes"],
         ],
     })
 

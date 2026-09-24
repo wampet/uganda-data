@@ -4,9 +4,10 @@ import { national as censusNational } from './census';
 
 interface Src { title: string; url: string; updated: string | null }
 type Series = { survey: string; value: number }[];
+type Posts = { approved: number; filled: number };
 
 const raw = healthJson as unknown as {
-  sources: Record<'under5' | 'infant' | 'fertility' | 'maternal' | 'stunting' | 'vaccination' | 'teen' | 'nets' | 'hiv' | 'spending' | 'facilities' | 'budget', Src>;
+  sources: Record<'under5' | 'infant' | 'fertility' | 'maternal' | 'stunting' | 'vaccination' | 'teen' | 'nets' | 'hiv' | 'spending' | 'facilities' | 'budget' | 'under5_causes' | 'cancer' | 'staffing' | 'births', Src>;
   under5_mortality: Series;
   infant_mortality: Series;
   fertility: Series;
@@ -19,6 +20,10 @@ const raw = healthJson as unknown as {
   public_spending_per_person: { year: string; ugx: number }[];
   budget_share: { year: string; pct: number }[];
   facilities: { columns: string[]; rows: { year: string; values: number[] }[] };
+  under5_causes: { causes: string[]; years: { year: string; values: number[] }[] };
+  cancer: { year: string; cases: number }[];
+  staffing: { years: string[]; total: Posts[]; levels: Record<string, Posts[]> };
+  births: { years: string[]; notified: number[]; registered: number[] };
   notes: string[];
 };
 
@@ -27,6 +32,7 @@ export const {
   under5_mortality: under5, infant_mortality: infant, fertility, stunting, vaccination,
   teen_childbearing: teen, mosquito_nets: nets, hiv_testing: hiv,
   public_spending_per_person: spending, budget_share: budgetShare,
+  under5_causes: under5Causes, cancer, staffing, births,
 } = raw;
 
 const first = <T,>(a: T[]) => a[0];
@@ -37,6 +43,15 @@ export const shortSurvey = (s: string) => s.replace(/\s*Malaria Indicators? Surv
 
 export const censusNets = censusNational.mosquito_net;
 export const censusInsurance = censusNational.insurance;
+
+/** Share of approved health-worker posts that are filled (latest year), by facility level, lowest first. */
+export const staffingYear = staffing.years[staffing.years.length - 1];
+const pct = (p: Posts) => (100 * p.filled) / p.approved;
+export const staffingLevels = Object.entries(staffing.levels)
+  .map(([name, v]) => ({ name, pct: pct(v[v.length - 1]) }))
+  .sort((a, b) => a.pct - b.pct);
+export const staffingTotal = staffing.total[staffing.total.length - 1];
+export const registeredPct = births.years.map((_, i) => (100 * births.registered[i]) / births.notified[i]);
 
 export function facts() {
   const u5a = first(under5), u5b = last(under5);
@@ -52,5 +67,9 @@ export function facts() {
     `${Math.round(censusNets ?? 0)}% of households had a mosquito net at the 2024 census, but only ${(censusInsurance ?? 0).toFixed(1)}% of people had health insurance.`,
     `Public health spending per person rose from UGX ${sp0.ugx.toLocaleString('en-UG')} in ${sp0.year} to UGX ${sp1.ugx.toLocaleString('en-UG')} in ${sp1.year}.`,
     `About ${last(teen).value}% of teenage girls aged 15–19 had begun childbearing in ${last(teen).survey}.`,
+    `Only ${Math.round(pct(staffingTotal))}% of approved health-worker posts in public facilities were filled in ${staffingYear}: ${(staffingTotal.approved - staffingTotal.filled).toLocaleString('en-UG')} posts were empty.`,
+    `${staffingLevels[0].name}${staffingLevels[0].name === 'Health Centre II' ? ' clinics, often the nearest to home,' : ''} had just ${Math.round(staffingLevels[0].pct)}% of their posts filled in ${staffingYear}.`,
+    `Malaria caused ${first(under5Causes.years).values[0]}% of deaths of children under 5 in hospital in ${first(under5Causes.years).year}.`,
+    `In ${last(births.years)}, ${births.registered[births.registered.length - 1].toLocaleString('en-UG')} births were registered, about ${Math.round(last(registeredPct))}% of the ${births.notified[births.notified.length - 1].toLocaleString('en-UG')} births notified.`,
   ];
 }

@@ -311,6 +311,17 @@ export const sharedCharts: SharedChart[] = [
     topic: 'People',
   },
   {
+    slug: 'uganda-health-worker-gap',
+    title: 'Too few health workers where people need them most',
+    subtitle: `% of approved posts filled in public health facilities, ${H.staffingYear}`,
+    description: `${H.facts().at(-4)} ${H.facts().at(-3)}`,
+    spec: { kind: 'bar', unit: '%', digits: 0, categories: [...H.staffingLevels.map((l) => l.name), 'All public facilities'], series: [{ name: 'Posts filled', data: [...H.staffingLevels.map((l) => l.pct), (100 * H.staffingTotal.filled) / H.staffingTotal.approved] }], highlight: ['All public facilities'], labelWidth: 240 },
+    height: 400,
+    source: src(H.sources.staffing),
+    page: { href: '/people/health/health-in-uganda/', label: 'More on health' },
+    topic: 'People',
+  },
+  {
     slug: 'uganda-government-spending',
     title: 'Where Uganda’s government spends its money',
     subtitle: `Out of every UGX 100,000 spent, ${GF.year}`,
