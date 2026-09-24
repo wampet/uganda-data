@@ -150,6 +150,13 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
       blurb: 'The dollar rate since 2014, what banks charge and pay, who they lend to, cash in circulation and insurance.',
     },
   ],
+  gender: [
+    {
+      href: '/people/gender/women-and-men/',
+      title: 'Women and men in Uganda',
+      blurb: 'The pay gap, schooling, young people out of work, life expectancy and who crime happens to.',
+    },
+  ],
   'government-finance': [
     {
       href: '/economy/government-finance/where-the-money-goes/',

@@ -17,6 +17,7 @@ import * as GF from './government';
 import * as EN from './environment';
 import * as BK from './banking';
 import * as CR from './crime';
+import * as GE from './gender';
 
 export interface SharedChart {
   slug: string;
@@ -317,6 +318,34 @@ export const sharedCharts: SharedChart[] = [
     source: src(GF.sources.functions),
     page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
     topic: 'Economy',
+  },
+  {
+    slug: 'uganda-pay-gap',
+    title: 'Women in Uganda earn less in every sector',
+    subtitle: 'Typical (median) monthly pay in paid jobs, UGX, 2021',
+    description: GE.facts()[0],
+    spec: { kind: 'bar', unit: '', digits: 0, categories: ['All paid jobs', ...GE.payBySector.map((x) => x.name)], series: [
+      { name: 'Women', data: [GE.pay.female, ...GE.payBySector.map((x) => x.women)], color: 2 },
+      { name: 'Men', data: [GE.pay.male, ...GE.payBySector.map((x) => x.men)], color: 1 },
+    ], labelWidth: 120 },
+    height: 420,
+    source: src(GE.sources.earnings),
+    page: { href: '/people/gender/women-and-men/', label: 'More on women and men' },
+    topic: 'People',
+  },
+  {
+    slug: 'uganda-women-and-men',
+    title: 'Where women and men differ in Uganda',
+    subtitle: '%, women vs men',
+    description: `${GE.facts()[1]} ${GE.facts()[2]}`,
+    spec: { kind: 'bar', unit: '%', digits: 0, categories: GE.gaps.map((g) => g.name), series: [
+      { name: 'Women', data: GE.gaps.map((g) => g.women), color: 2 },
+      { name: 'Men', data: GE.gaps.map((g) => g.men), color: 1 },
+    ], labelWidth: 300 },
+    height: 440,
+    source: src(GE.sources.jobs),
+    page: { href: '/people/gender/women-and-men/', label: 'More on women and men' },
+    topic: 'People',
   },
   {
     slug: 'uganda-crimes-by-type',

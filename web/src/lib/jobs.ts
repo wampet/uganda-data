@@ -24,6 +24,8 @@ export const workingMillions = raw.working_millions;
 export const earnings = raw.earnings_2021_ugx_000.map((e) => ({ ...e, name: e.name.trim() }));
 export const statusByEducation = raw.status_by_education;
 export const youthSubsistence = raw.youth.subsistence_only;
+/** Share of the working population who only farm for their own family, by sex and survey. */
+export const subsistenceBySex = raw.subsistence_only_pct;
 
 const last = <T,>(a: T[]) => a[a.length - 1];
 export const latestSurvey = last(surveys);
