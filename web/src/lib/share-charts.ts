@@ -16,6 +16,7 @@ import * as H from './health';
 import * as GF from './government';
 import * as EN from './environment';
 import * as BK from './banking';
+import * as CR from './crime';
 
 export interface SharedChart {
   slug: string;
@@ -316,6 +317,31 @@ export const sharedCharts: SharedChart[] = [
     source: src(GF.sources.functions),
     page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
     topic: 'Economy',
+  },
+  {
+    slug: 'uganda-crimes-by-type',
+    title: 'What crimes are reported in Uganda?',
+    subtitle: `Cases reported to police, ${CR.year}`,
+    description: `${CR.facts()[0]} ${CR.facts()[1]}`,
+    spec: { kind: 'bar', unit: '', digits: 0, categories: CR.categories.map((c) => c.name), series: [{ name: 'Cases reported', data: CR.categories.map((c) => c.reported) }], labelWidth: 190 },
+    height: 460,
+    source: src(CR.sources.categories),
+    page: { href: '/people/crime/crime-and-prisons/', label: 'More on crime and prisons' },
+    topic: 'People',
+  },
+  {
+    slug: 'uganda-prison-population',
+    title: 'Uganda’s prisons keep filling up',
+    subtitle: 'Prisoners, convicted and on remand',
+    description: `${CR.facts()[5]} ${CR.facts()[6]}`,
+    spec: { kind: 'bar', stacked: true, unit: '', digits: 0, categories: CR.prison.years, series: [
+      { name: 'Convicted', data: CR.prison.convicted, color: 1 },
+      { name: 'On remand', data: CR.prison.remand, color: 2 },
+    ], labelWidth: 60 },
+    height: 420,
+    source: src(CR.sources.prison),
+    page: { href: '/people/crime/crime-and-prisons/', label: 'More on crime and prisons' },
+    topic: 'People',
   },
   {
     slug: 'uganda-shilling-dollar-rate',

@@ -126,6 +126,11 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
   ],
   crime: [
     {
+      href: '/people/crime/crime-and-prisons/',
+      title: 'Crime and prisons in Uganda',
+      blurb: 'Which crimes are reported, who the victims are, mob justice, and how crowded prisons are.',
+    },
+    {
       href: '/people/crime/road-safety/',
       title: 'How dangerous are Uganda’s roads?',
       blurb: 'Road deaths and injuries since 2019: who gets hurt, which vehicles, what time of day, and where crashes are deadliest.',

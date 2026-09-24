@@ -933,6 +933,139 @@ def build_banking(records: list[dict]) -> None:
     })
 
 
+def build_crime(records: list[dict]) -> None:
+    from .parsers import wide
+
+    def raw(s):
+        return [r for r in wide.load(get_file(s["url"])) if any(v is not None for v in r)]
+
+    def lab(v):
+        return " ".join(str(v).split()) if v is not None else ""
+
+    def data_rows(rows):
+        """(label, cells) for rows below the headers, up to the source line."""
+        out = []
+        for r in rows[3:]:
+            name = lab(r[0])
+            if name.lower().startswith(("source", "*")):
+                break
+            if name:
+                out.append((name, r))
+        return out
+
+    # Crimes reported and prosecuted by category, 2020-2023. The 2020 block has an
+    # empty column between "Reported" and "Prosecuted", so columns are fixed here.
+    s_cat = _dataset(records, "Number of Crimes by Category")
+    rows = raw(s_cat)
+    years = ["2020", "2021", "2022", "2023"]
+    if [wide.year_of(rows[1][j]) for j in (1, 4, 6, 8)] != years:
+        raise ValueError("crime: unexpected year columns in crimes by category")
+    cols = {"2020": (1, 3), "2021": (4, 5), "2022": (6, 7), "2023": (8, 9)}
+    cats = []
+    for name, r in data_rows(rows):
+        cats.append({"name": name.rstrip("*"), "reported": [wide.num(r[cols[y][0]]) for y in years],
+                     "prosecuted": [wide.num(r[cols[y][1]]) for y in years]})
+    total = next(c for c in cats if c["name"] == "Total")
+    cats = [c for c in cats if c["name"] != "Total"]
+    for i, y in enumerate(years):
+        for k in ("reported", "prosecuted"):
+            if abs(sum(c[k][i] or 0 for c in cats) - total[k][i]) > 5:
+                raise ValueError(f"crime: {k} {y} categories don't add up to the total")
+
+    # Reported cases by detailed category, 2019-2023 (includes domestic violence).
+    s_rep = _dataset(records, "Number of Crimes reported by category")
+    rep = _labelled(get_file(s_rep["url"]))
+    reported_detail = [{"name": n.strip(), "values": v} for _, n, v in rep["rows"]]
+
+    # Serious crimes: selected rows, reported, 2019-2023.
+    s_ser = _dataset(records, "Serious Crimes Reported by Type")
+    serious = {}
+    for name, r in data_rows(raw(s_ser)):
+        serious[name] = [wide.num(r[j]) for j in (1, 3, 5, 7, 9)]
+    mob = serious["Death (by mob action)"]
+    defilement = serious["Defilement"]
+
+    # Victims by sex and age, 2023.
+    s_vic = _dataset(records, "Number of Victims of Reported Crime by Case")
+    victims = []
+    for name, r in data_rows(raw(s_vic)):
+        v = {"name": name.rstrip("*"), "male_adult": wide.num(r[1]) or 0, "male_child": wide.num(r[2]) or 0,
+             "female_adult": wide.num(r[4]) or 0, "female_child": wide.num(r[5]) or 0, "total": wide.num(r[7])}
+        if abs(v["male_adult"] + v["male_child"] + v["female_adult"] + v["female_child"] - v["total"]) > 2:
+            raise ValueError(f"crime: victims of {name} don't add up")
+        victims.append(v)
+
+    # Offenders by sex, 2023.
+    s_off = _dataset(records, "Number of Offenders Perpetrators of crime")
+    off_total = next(r for n, r in data_rows(raw(s_off)) if n == "Total")
+    offenders = {"male": wide.num(off_total[5]), "female": wide.num(off_total[6]), "total": wide.num(off_total[7]),
+                 "juvenile": wide.num(off_total[3]) + wide.num(off_total[4])}
+    if offenders["male"] + offenders["female"] != offenders["total"]:
+        raise ValueError("crime: offenders by sex don't add up")
+
+    # Prison population, remand vs convicted, deaths, babies.
+    s_pop = _dataset(records, "Prison Population by Category")
+    pop = _labelled(get_file(s_pop["url"]))
+    def prow(label):
+        return next(v for _, n, v in pop["rows"] if n.lower().startswith(label.lower()))
+    prison = {"years": pop["years"], "remand": prow("Remand"), "convicted": prow("Convicted"), "debtors": prow("Debtors"),
+              "total": prow("Total prison population"), "deaths": prow("Deaths in Prison"),
+              "babies": prow("Babies staying")}
+    for i in range(len(prison["years"])):
+        if prison["remand"][i] + prison["convicted"][i] + prison["debtors"][i] != prison["total"][i]:
+            raise ValueError(f"crime: prison population doesn't add up in {prison['years'][i]}")
+
+    # Capacity and occupancy by region (capacity in cols 1-5, occupancy % in cols 6-10).
+    s_cap = _dataset(records, "Prison Capacity and Occupancy Rate by region")
+    cap_rows = data_rows(raw(s_cap))
+    capacity = [{"region": n.rstrip("*"), "capacity": [wide.num(r[j]) for j in range(1, 6)],
+                 "occupancy": [wide.num(r[j]) for j in range(6, 11)]} for n, r in cap_rows]
+    nat = next(c for c in capacity if c["region"] == "National")
+    for i, y in enumerate(prison["years"]):
+        implied = 100 * prison["total"][i] / nat["capacity"][i]
+        if abs(implied - nat["occupancy"][i]) > 3:
+            raise ValueError(f"crime: occupancy {y} ({nat['occupancy'][i]}) doesn't match population/capacity ({implied:.1f})")
+
+    # Prisoners by offence, 2023.
+    s_offence = _dataset(records, "Number of prisoners by Offence Committed")
+    offences = [{"name": n, "convicts": wide.num(r[3]), "remand": wide.num(r[6]), "total": wide.num(r[7])}
+                for n, r in data_rows(raw(s_offence))]
+    grand = next(o for o in offences if o["name"].lower() == "grand total")
+    offences = [o for o in offences if o is not grand]
+    if abs(sum(o["total"] for o in offences) - grand["total"]) > 2:
+        raise ValueError("crime: prisoners by offence don't add up")
+
+    # Re-offending.
+    s_rec = _dataset(records, "Recidivism rate by offences")
+    rec_total = next(r for n, r in data_rows(raw(s_rec)) if n == "TOTAL")
+
+    _write("crime.json", {
+        "sources": {k: _src(v) for k, v in {"categories": s_cat, "reported": s_rep, "serious": s_ser, "victims": s_vic,
+                                               "offenders": s_off, "prison": s_pop, "capacity": s_cap,
+                                               "offences": s_offence, "recidivism": s_rec}.items()},
+        "years": years,
+        "categories": cats,
+        "total": total,
+        "reported_detail": {"years": rep["years"], "rows": reported_detail},
+        "serious": {"years": ["2019", "2020", "2021", "2022", "2023"], "mob": mob, "defilement": defilement},
+        "victims_2023": victims,
+        "offenders_2023": offenders,
+        "prison": prison,
+        "capacity": capacity,
+        "offences_2023": offences,
+        "recidivism": {"year": "2022/23", "rate": wide.num(rec_total[6]), "admissions": wide.num(rec_total[4])},
+        "notes": [
+            "Crimes are cases reported to the Uganda Police Force; many crimes are never reported. “Prosecuted” means "
+            "taken to court in that year, not necessarily cases reported in the same year.",
+            "The police use two groupings: the headline categories (from “Number of Crimes by Category”) and a more "
+            "detailed list that separates domestic violence. They overlap, so they are not added together.",
+            "Prison figures are from the Uganda Prisons Service. Occupancy is the number of prisoners as a share of the "
+            "space prisons were built for: 300% means three people for every place.",
+            "Remand prisoners are held while awaiting trial and have not been convicted.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -949,3 +1082,4 @@ def build(refresh: bool = False) -> None:
     build_government(records)
     build_environment(records)
     build_banking(records)
+    build_crime(records)
