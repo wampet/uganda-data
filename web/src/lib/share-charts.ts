@@ -15,6 +15,7 @@ import * as J from './jobs';
 import * as H from './health';
 import * as GF from './government';
 import * as EN from './environment';
+import * as BK from './banking';
 
 export interface SharedChart {
   slug: string;
@@ -314,6 +315,32 @@ export const sharedCharts: SharedChart[] = [
     height: 460,
     source: src(GF.sources.functions),
     page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
+    topic: 'Economy',
+  },
+  {
+    slug: 'uganda-shilling-dollar-rate',
+    title: 'What a dollar costs in Uganda shillings',
+    subtitle: `Average inter-bank rate, UGX per US$, ${BK.fx0.year}–${BK.fx1.year}`,
+    description: BK.facts()[0],
+    spec: { kind: 'line', unit: '', digits: 0, x: BK.fx.years, series: [{ name: 'UGX per US$', data: BK.fx.rate, color: 1, points: true }] },
+    height: 400,
+    source: src(BK.sources.fx),
+    page: { href: '/economy/banking/money-and-banks/', label: 'More on money and banks' },
+    topic: 'Economy',
+  },
+  {
+    slug: 'uganda-interest-rates',
+    title: 'Banks lend dear and pay little on savings',
+    subtitle: 'Interest rates in June, % a year',
+    description: BK.facts()[1],
+    spec: { kind: 'line', unit: '%', digits: 1, x: BK.interest.years, yMin: 0, series: [
+      { name: 'Bank lending', data: BK.interest.rates['Bank lending (shillings)'], color: 2, points: true },
+      { name: 'Central Bank Rate', data: BK.interest.rates['Central Bank Rate'], color: 1, points: true },
+      { name: 'Savings', data: BK.interest.rates['Savings deposits (shillings)'], color: 4, points: true },
+    ] },
+    height: 400,
+    source: src(BK.sources.interest),
+    page: { href: '/economy/banking/money-and-banks/', label: 'More on money and banks' },
     topic: 'Economy',
   },
   {

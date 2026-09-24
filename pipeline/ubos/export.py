@@ -816,6 +816,123 @@ def build_environment(records: list[dict]) -> None:
     })
 
 
+def _labelled(path, sheet: str | None = None) -> dict:
+    """Small wide table whose header holds years or June dates; returns {"years", "rows": [(group, label, values)]}.
+
+    Rows with no numbers become the group for the rows below (e.g. "a) Shillings")."""
+    import datetime as dt
+
+    from .parsers import wide
+
+    rows = wide.load(path, sheet)
+    def yr(v):
+        return str(v.year) if isinstance(v, dt.datetime) else wide.year_of(v)
+    h = next(i for i, r in enumerate(rows) if sum(1 for c in r if yr(c)) >= 3)
+    cols = [j for j, c in enumerate(rows[h]) if yr(c)]
+    out, group = [], None
+    for r in rows[h + 1:]:
+        label = " ".join(str(r[0]).split()) if r and r[0] is not None else ""
+        if not label or label.lower().startswith(("source", "note")):
+            continue
+        vals = [wide.num(r[j]) if j < len(r) else None for j in cols]
+        if all(v is None for v in vals):
+            group = label
+            continue
+        out.append((group, label, vals))
+    return {"years": [yr(rows[h][j]) for j in cols], "rows": out}
+
+
+def build_banking(records: list[dict]) -> None:
+    def row(t, label, group=None):
+        hits = [v for g, lab, v in t["rows"] if lab.lower() == label.lower() and (group is None or (g or "").lower().startswith(group.lower()))]
+        if not hits:
+            raise ValueError(f"banking: no row '{label}' (group {group})")
+        return hits[0]
+
+    def splice(old, new, label, tol=0.01):
+        """Join an older and a newer table on their shared year; the newer vintage wins."""
+        a, b = row(old, label), row(new, label)
+        shared = [y for y in old["years"] if y in new["years"]]
+        for y in shared:
+            va, vb = a[old["years"].index(y)], b[new["years"].index(y)]
+            if abs(va - vb) > tol * abs(vb):
+                raise ValueError(f"banking: '{label}' {y} differs between table vintages ({va} vs {vb})")
+        years = [y for y in old["years"] if y not in shared] + new["years"]
+        vals = [a[old["years"].index(y)] for y in old["years"] if y not in shared] + b
+        return years, vals
+
+    # Exchange rates: 2014-2019 (UBOS files it under "Volumes of ... transactions") + 2019-2023.
+    s_fx_old = _dataset(records, "Volumes of Inter-bank and Bureaux Foreign Exchange")
+    s_fx = _dataset(records, "Annual Foreign Exchange Rates (Uganda shillings per US$), 2019")
+    fx_old = _labelled(get_file(s_fx_old["url"]), "Sheet8")
+    fx_new = _labelled(get_file(s_fx["url"]))
+    fx_old["rows"] = [(g, "Inter-bank mid-rate" if lab.lower().startswith("inter-bank mid") else lab, v) for g, lab, v in fx_old["rows"]]
+    fx_years, fx = splice(fx_old, fx_new, "Inter-bank mid-rate")
+    volumes = _labelled(get_file(s_fx_old["url"]), "Sheet9")
+
+    # Interest rates, June 2014-2019.
+    s_int = _dataset(records, "Structure of Interest Rates")
+    it = _labelled(get_file(s_int["url"]))
+    rates = {
+        "Central Bank Rate": row(it, "Central Bank Rate (CBR)"),
+        "Bank lending (shillings)": row(it, "Lending Rates", "a) Shillings"),
+        "Savings deposits (shillings)": row(it, "Savings deposits", "a) Shillings"),
+        "91-day Treasury bill": row(it, "91 Days"),
+    }
+
+    # Banks and money: depository corporations survey, June 2014-2019 + 2019-2023.
+    s_dc_old = _dataset(records, "Depository Corporation Survey (Billion Shillings), June 2014")
+    s_dc = _dataset(records, "Depository Corporation Survey (Billion Shillings), June 2019")
+    dc_old, dc_new = _labelled(get_file(s_dc_old["url"])), _labelled(get_file(s_dc["url"]))
+    money = {}
+    for key, label in [("private_loans", "Of which: Loans"), ("government_net", "Claims on Central Government(net)"),
+                       ("m3", "Broad Money-M3"), ("currency", "Currency Outside Depository Corporations"),
+                       ("fx_deposits", "Foreign Currency Deposits")]:
+        dc_years, money[key] = splice(dc_old, dc_new, label, tol=0.01)
+    # Check the newest table's broad money adds up: M3 = M2 + foreign currency deposits.
+    m3, m2, fcd = row(dc_new, "Broad Money-M3"), row(dc_new, "Broad Money-M2"), row(dc_new, "Foreign Currency Deposits")
+    if any(abs(a - (b + c)) > 1 for a, b, c in zip(m3, m2, fcd)):
+        raise ValueError("banking: M3 != M2 + foreign currency deposits")
+
+    # Insurance premiums (million UGX), 2012-2018.
+    s_life = _dataset(records, "Life Insurance Net premium income")
+    s_nonlife = _dataset(records, "Non-Life Insurance Net Premium Income")
+    insurance = {}
+    for key, s in [("life", s_life), ("non_life", s_nonlife)]:
+        t = _labelled(get_file(s["url"]))
+        parts = [(lab, v) for _, lab, v in t["rows"] if not lab.lower().startswith("total")]
+        total = row(t, "Total Income")
+        for i, tv in enumerate(total):
+            if abs(sum(v[i] or 0 for _, v in parts) - tv) > 2:
+                raise ValueError(f"banking: {key} insurance classes don't add up in {t['years'][i]}")
+        insurance[key] = {"years": t["years"], "total": total, "classes": [{"name": lab, "values": v} for lab, v in parts]}
+
+    # Remittances table: only capital transfers, so it is reported in a note, not charted.
+    s_rem = _dataset(records, "Ratio of diaspora Remittances to GDP")
+    rem = _labelled(get_file(s_rem["url"]))
+    rem_last = row(rem, "Capital transfers (Remittances)")[-1]
+
+    _write("banking.json", {
+        "sources": {k: _src(v) for k, v in {"fx": s_fx, "fx_old": s_fx_old, "interest": s_int, "money_old": s_dc_old,
+                                               "money": s_dc, "life": s_life, "non_life": s_nonlife}.items()},
+        "fx": {"years": fx_years, "rate": fx},
+        "fx_volumes": {"years": volumes["years"], "purchases": row(volumes, "Total", "Purchases"), "sales": row(volumes, "Total", "Sales")},
+        "interest": {"years": it["years"], "rates": rates},
+        "money": {"years": dc_years, **money},
+        "insurance": insurance,
+        "notes": [
+            "Exchange rates are Bank of Uganda annual averages of the inter-bank mid-rate. The 2014–2019 rates come from a "
+            "UBOS file titled “Volumes of Inter-bank and Bureaux Foreign Exchange Transactions”.",
+            "Interest rates are for June of each year; UBOS has not published a newer table.",
+            "Bank figures are for June of each year. Where the older and newer UBOS tables overlap (2019), the newer one is used.",
+            "UBOS’s “Ratio of diaspora remittances to GDP” table covers only capital transfers (about US$176 million in 2022/23), "
+            "not all the money Ugandans abroad send home, so it is not shown.".replace(
+                "about US$176 million in 2022/23", f"about US${round(rem_last)} million in {rem['years'][-1]}"),
+            "Insurance figures are premium income reported by the Insurance Regulatory Authority, 2012–2018.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -831,3 +948,4 @@ def build(refresh: bool = False) -> None:
     build_health(records)
     build_government(records)
     build_environment(records)
+    build_banking(records)

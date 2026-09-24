@@ -1,0 +1,153 @@
+---
+import { safeJson } from '../../../lib/json';
+import Base from '../../../layouts/Base.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  cash1, cashPerPerson, facts, fx, fx1, interest, lending, life, m1, money, moneyYears, nonLife, notes, rateYear, savings,
+  sources, trn,
+} from '../../../lib/banking';
+
+const allFacts = facts();
+const n0 = (v: number) => Math.round(v).toLocaleString('en-UG');
+const tiles = [
+  { label: `US dollar, ${fx1.year}`, value: `UGX ${n0(fx1.rate)}`, note: 'average inter-bank rate' },
+  { label: `Bank lending rate, ${rateYear}`, value: `${lending.toFixed(1)}%`, note: `vs ${savings.toFixed(1)}% paid on savings` },
+  { label: `Cash outside banks, ${m1}`, value: trn(cash1), note: `about UGX ${n0(Math.round(cashPerPerson / 1000) * 1000)} per person` },
+  { label: `Bank loans, ${m1}`, value: trn(money.private_loans.at(-1)!), note: 'to businesses and households' },
+];
+const T = (arr: number[]) => arr.map((v) => v / 1000);
+const rateColors: Record<string, number> = { 'Bank lending (shillings)': 2, 'Central Bank Rate': 1, '91-day Treasury bill': 3, 'Savings deposits (shillings)': 4 };
+const lifeNonLife = life.years.map((_, i) => i);
+---
+
+<Base
+  title="Money and banks"
+  description={`A dollar cost UGX ${n0(fx1.rate)} in ${fx1.year}. See exchange rates, bank interest rates, lending, cash in circulation and insurance in Uganda.`}
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/economy/">Economy</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/economy/banking/">Banking &amp; Money</a>
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">Money · Bank of Uganda and insurance statistics via UBOS</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+          The shilling, the banks and your money
+        </h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{allFacts[0]} {allFacts[1]}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5">
+      <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+      <p id="fact" class="min-h-12 flex-1 text-ink" aria-live="polite">{allFacts[2]}</p>
+      <button id="fact-next" type="button" class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+      <script type="application/json" id="facts-data" set:html={safeJson(allFacts)} />
+    </section>
+
+    <section class="grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="fx"
+        share="uganda-shilling-dollar-rate"
+        title="What a dollar costs in shillings"
+        subtitle="Average inter-bank rate, UGX per US$"
+        height={360}
+        source={sources.fx}
+        spec={{ kind: 'line', unit: '', digits: 0, x: fx.years, series: [{ name: 'UGX per US$', data: fx.rate, color: 1, points: true }] }}
+      />
+      <Chart
+        id="rates"
+        share="uganda-interest-rates"
+        title="Banks lend dear and pay little on savings"
+        subtitle="Interest rates in June, % a year"
+        height={360}
+        source={sources.interest}
+        spec={{ kind: 'line', unit: '%', digits: 1, x: interest.years, yMin: 0, series: Object.entries(interest.rates).map(([name, data]) => ({ name, data, color: rateColors[name] ?? 5, points: true })) }}
+      />
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="lending"
+        title="Who the banks lend to"
+        subtitle="Loans to businesses and households vs net lending to government, UGX trillion, June"
+        height={360}
+        source={sources.money}
+        spec={{ kind: 'line', unit: ' tn', digits: 1, x: moneyYears, yMin: 0, series: [
+          { name: 'Businesses & households', data: T(money.private_loans), color: 1, points: true },
+          { name: 'Central government (net)', data: T(money.government_net), color: 2, points: true },
+        ] }}
+      />
+      <Chart
+        id="money"
+        title="How much money is there?"
+        subtitle="Broad money (cash and bank deposits), UGX trillion, June"
+        height={360}
+        source={sources.money}
+        spec={{ kind: 'bar', stacked: true, unit: ' tn', digits: 1, categories: moneyYears, series: [
+          { name: 'Cash outside banks', data: T(money.currency), color: 3 },
+          { name: 'Shilling deposits', data: money.m3.map((m, i) => (m - money.currency[i] - money.fx_deposits[i]) / 1000), color: 1 },
+          { name: 'Foreign currency deposits', data: T(money.fx_deposits), color: 2 },
+        ], labelWidth: 50 }}
+      />
+    </section>
+
+    <section class="mt-12 grid gap-4 lg:grid-cols-2">
+      <Chart
+        id="insurance"
+        title="Insurance is growing, especially life cover"
+        subtitle="Premium income, UGX billion"
+        height={340}
+        source={sources.life}
+        spec={{ kind: 'line', unit: ' bn', digits: 0, x: life.years, yMin: 0, series: [
+          { name: 'Life insurance', data: lifeNonLife.map((i) => life.total[i] / 1000), color: 1, points: true },
+          { name: 'Non-life insurance', data: lifeNonLife.map((i) => nonLife.total[i] / 1000), color: 2, points: true },
+        ] }}
+      />
+      <Chart
+        id="non-life"
+        title="What people insure"
+        subtitle={`Non-life premium income by type, UGX billion, ${nonLife.years.at(-1)}`}
+        height={340}
+        source={sources.non_life}
+        spec={{ kind: 'bar', unit: ' bn', digits: 0, categories: nonLife.classes.map((c) => c.name), series: [{ name: 'UGX billion', data: nonLife.classes.map((c) => (c.values.at(-1) ?? 0) / 1000) }], labelWidth: 120 }}
+      />
+    </section>
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {Object.values(sources).map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
+  let i = 2;
+  document.getElementById('fact-next')!.addEventListener('click', () => {
+    i = (i + 1) % facts.length;
+    document.getElementById('fact')!.textContent = facts[i];
+  });
+</script>

@@ -138,6 +138,13 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
       blurb: 'Poverty since 1999, by region, who moved in and out of poverty, and daily life: shoes, blankets, meals.',
     },
   ],
+  banking: [
+    {
+      href: '/economy/banking/money-and-banks/',
+      title: 'The shilling, the banks and your money',
+      blurb: 'The dollar rate since 2014, what banks charge and pay, who they lend to, cash in circulation and insurance.',
+    },
+  ],
   'government-finance': [
     {
       href: '/economy/government-finance/where-the-money-goes/',
