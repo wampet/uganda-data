@@ -7,6 +7,7 @@ it needs, so file size here never becomes page weight.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import openpyxl
@@ -489,6 +490,113 @@ def build_education(records: list[dict]) -> None:
     })
 
 
+def _jobs_extra(records: list[dict]) -> dict:
+    """Public service and social security: civil service size and wage bill, pensioners, NSSF."""
+    from .parsers import wide
+
+    def rows_of(title_start):
+        src = _dataset(records, title_start)
+        rows = [r for r in wide.load(get_file(src["url"])) if any(v not in (None, "") for v in r)]
+        # Some files start their table in the 2nd or 3rd column: drop the empty leading columns.
+        lead = min(next((j for j, v in enumerate(r) if v not in (None, "")), 0) for r in rows)
+        return src, [r[lead:] for r in rows]
+
+    def label(v):
+        return " ".join(str(v).split()) if v is not None else ""
+
+    # Size of the civil service: 2016-2020 and 2019-2023 tables, joined on their shared years.
+    def size_table(title_start):
+        src, rows = rows_of(title_start)
+        h = next(i for i, r in enumerate(rows) if sum(1 for c in r if wide.year_of(c)) >= 4)
+        cols = [(j, wide.year_of(c)) for j, c in enumerate(rows[h]) if wide.year_of(c)]
+        out = {}
+        for r in rows[h + 1:]:
+            name = re.sub(r"\s*\[\d+\]", "", label(r[0]))
+            if name and not name.lower().startswith(("source", "percentage")):
+                out[name] = {y: wide.num(r[j]) for j, y in cols}
+        return src, [y for _, y in cols], out
+    s_cs_old, y_old, old = size_table("Size of the Civil Service, 2015 - 2020")
+    s_cs, y_new, new = size_table("Size of the Civil Service, 2019-2023")
+    groups = [g for g in new if g != "Total"]
+    for g in groups + ["Total"]:
+        for y in set(y_old) & set(y_new):
+            if old[g][y] != new[g][y]:
+                raise ValueError(f"jobs: civil service '{g}' {y} differs between UBOS tables")
+    cs_years = sorted(set(y_old) | set(y_new))
+    size = {g: [new[g].get(y, old[g].get(y)) for y in cs_years] for g in groups}
+    total = [new["Total"].get(y, old["Total"].get(y)) for y in cs_years]
+    for i, y in enumerate(cs_years):
+        if abs(sum(size[g][i] for g in groups) - total[i]) > 2:
+            raise ValueError(f"jobs: civil service groups don't add up in {y}")
+
+    # Monthly wage bill by group. Labelled "billion", but the values are millions (UGX 411 trillion a month is impossible).
+    s_wage, rows = rows_of("Employment in Civil Service")
+    wy = [wide.year_of(c) for c in rows[1] if wide.year_of(c)]
+    wage = {}
+    for r in rows[3:]:
+        name = label(r[0])
+        if name and not name.lower().startswith("source"):
+            wage[name] = [wide.num(r[1 + 2 * i]) / 1000 for i in range(len(wy))]  # -> UGX billion
+    if max(wage["Total"]) > 5000:
+        raise ValueError("jobs: wage bill no longer looks like millions of shillings; re-check units")
+
+    # Women's share by group.
+    s_sex, rows = rows_of("Distribution of the Civil Service Groups by sex, 2022")
+    sy = [wide.year_of(c) for c in rows[1] if wide.year_of(c)][-1]
+    women = {label(r[0]): wide.num(r[8]) for r in rows[3:] if label(r[0]) and not label(r[0]).lower().startswith("source")}
+
+    # Pensioners (counts only: the pension amounts switch units between tables).
+    pens = {}
+    for t in ("Number of Pensioners by Category and Sex in 2019", "Number of pensioners by category and sex in 2022"):
+        src, rows = rows_of(t)
+        ys = [(j, wide.year_of(c)) for j, c in enumerate(rows[1]) if wide.year_of(c)]
+        gt = next(r for r in rows if label(r[0]).lower() == "grand total")
+        for j, y in ys:
+            pens[y] = {"female": wide.num(gt[j]), "male": wide.num(gt[j + 1]), "total": wide.num(gt[j + 2])}
+            if abs(pens[y]["female"] + pens[y]["male"] - pens[y]["total"]) > 2:
+                raise ValueError(f"jobs: pensioners {y} don't add up")
+        if "2022" in t:
+            s_pens = src
+    pens_years = sorted(pens)
+
+    # NSSF members (2021-2023) by sector and sex; employers.
+    s_nssf, rows = rows_of("Number of annual subscribers by sex and sector")
+    ny = [wide.year_of(c) for c in rows[1] if wide.year_of(c)]
+    members = []
+    for r in rows[3:]:
+        name = label(r[0])
+        if not name or name.lower().startswith("source"):
+            continue
+        vals = [(wide.num(r[1 + 3 * i]), wide.num(r[2 + 3 * i]), wide.num(r[3 + 3 * i])) for i in range(len(ny))]
+        for m, f, t in vals:
+            if abs(m + f - t) > 2:
+                raise ValueError(f"jobs: NSSF members for {name} don't add up")
+        members.append({"name": name, "male": [v[0] for v in vals], "female": [v[1] for v in vals], "total": [v[2] for v in vals]})
+    m_total = next(m for m in members if m["name"].lower() == "total")
+    members = [m for m in members if m is not m_total]
+    s_emp, rows = rows_of("Number of employers depositing NSSF")
+    employers = next([wide.num(v) for v in r[1:1 + len(ny)]] for r in rows if label(r[0]).lower() == "grand total")
+
+    return {
+        "sources": {"civil_service": _src(s_cs), "wage_bill": _src(s_wage), "civil_service_sex": _src(s_sex),
+                    "pensioners": _src(s_pens), "nssf": _src(s_nssf), "nssf_employers": _src(s_emp)},
+        "data": {
+            "civil_service": {"years": cs_years, "groups": size, "total": total},
+            "wage_bill_bn": {"years": wy, "groups": {k: v for k, v in wage.items() if k != "Total"}, "total": wage["Total"]},
+            "civil_service_women_pct": {"year": sy, "groups": women},
+            "pensioners": {"years": pens_years, "rows": [pens[y] for y in pens_years]},
+            "nssf": {"years": ny, "sectors": members, "total": m_total, "employers": employers},
+        },
+        "notes": [
+            "UBOS labels the civil-service wage bill in billions of shillings, but the figures only make sense in millions "
+            "(otherwise the monthly bill would be over UGX 400 trillion); they are shown here as UGX billion.",
+            "Pensioners are public-service pensioners (teachers and traditional civil servants). UBOS gives no 2021 figure.",
+            "NSSF members are workers with contributions in the year. An older UBOS table (2018–2020) counts something "
+            "much smaller, so the two are not joined.",
+        ],
+    }
+
+
 def build_jobs(records: list[dict]) -> None:
     def read(title_start):
         r = _dataset(records, title_start)
@@ -535,9 +643,12 @@ def build_jobs(records: list[dict]) -> None:
     ]
 
     status_cols = [c for c in status["columns"] if c.split(" · ")[-1].lower() != "total"]
+    extra = _jobs_extra(records)
     _write("jobs.json", {
         "sources": {k: _src(v) for k, v in {
-            "key": s_key, "youth": s_youth, "epr": s_epr, "industry": s_ind, "status": s_status, "earnings": s_earn}.items()},
+            "key": s_key, "youth": s_youth, "epr": s_epr, "industry": s_ind, "status": s_status, "earnings": s_earn}.items()}
+        | extra["sources"],
+        **extra["data"],
         "surveys": svy,
         "working_age_millions": by_survey(key, "Working Age Population (million)", "Total"),
         "working_millions": by_survey(key, "Working Population (million)", "Total"),
@@ -564,6 +675,7 @@ def build_jobs(records: list[dict]) -> None:
         "notes": [
             "Earnings are medians for people in paid work, in thousands of shillings a month (cash and in-kind), from the 2021 National Labour Force Survey.",
             "Surveys differ (UNHS 2016/17 and 2019/20, NLFS 2021), so small changes between them should be read with care.",
+            *extra["notes"],
         ],
     })
 

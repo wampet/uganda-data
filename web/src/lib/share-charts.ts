@@ -322,6 +322,17 @@ export const sharedCharts: SharedChart[] = [
     topic: 'People',
   },
   {
+    slug: 'uganda-public-service',
+    title: 'Who works for Uganda’s government?',
+    subtitle: 'Public servants by group',
+    description: `${J.publicFacts()[0]} ${J.publicFacts()[1]}`,
+    spec: { kind: 'bar', stacked: true, unit: '', digits: 0, categories: J.civilService.years, series: Object.entries(J.civilService.groups).map(([g, v], i) => ({ name: J.groupName(g), data: v, color: i + 1 })), labelWidth: 60 },
+    height: 440,
+    source: src(J.sources.civil_service),
+    page: { href: '/people/jobs/work-and-earnings/', label: 'More on jobs' },
+    topic: 'People',
+  },
+  {
     slug: 'uganda-government-spending',
     title: 'Where Uganda’s government spends its money',
     subtitle: `Out of every UGX 100,000 spent, ${GF.year}`,

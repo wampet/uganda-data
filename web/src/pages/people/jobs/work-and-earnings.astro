@@ -5,6 +5,7 @@ import Chart from '../../../components/Chart.astro';
 import {
   censusNeet, censusUnemployment, earn, earningsGroup, employeesByEducation, facts, industry, latestSurvey, notes,
   sources, surveys, workingMillions, youth, youthSubsistence,
+  civilService, groupName, nssf, nssfSectors, pensioners, publicFacts, wageBill, womenInService,
 } from '../../../lib/jobs';
 
 const allFacts = facts();
@@ -128,6 +129,49 @@ const tiles = [
           {' '}{latestSurvey} figures should not be compared directly with earlier years. The census figure at the top of this page is
           the more complete picture.
         </p>
+      </div>
+    </section>
+
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Working for government, and saving for retirement</h2>
+      <ul class="mt-3 max-w-3xl list-disc space-y-1 pl-5 text-ink-2">
+        {publicFacts().map((f) => <li>{f}</li>)}
+      </ul>
+      <div class="mt-5 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="civil-service"
+          share="uganda-public-service"
+          title="Who works for government?"
+          subtitle="Public servants by group"
+          height={340}
+          source={sources.civil_service}
+          spec={{ kind: 'bar', stacked: true, unit: '', digits: 0, categories: civilService.years, series: Object.entries(civilService.groups).map(([g, v], i) => ({ name: groupName(g), data: v, color: i + 1 })), labelWidth: 50 }}
+        />
+        <Chart
+          id="wage-bill"
+          title="The monthly wage bill"
+          subtitle="Public-service pay, UGX billion a month (see notes on units)"
+          height={340}
+          source={sources.wage_bill}
+          spec={{ kind: 'bar', stacked: true, unit: ' bn', digits: 0, categories: wageBill.years, series: Object.entries(wageBill.groups).map(([g, v], i) => ({ name: groupName(g), data: v, color: i + 1 })), labelWidth: 50 }}
+        />
+        <Chart
+          id="women-service"
+          title="Women in the public service"
+          subtitle={`% of each group who are women, ${womenInService.year}`}
+          height={300}
+          source={sources.civil_service_sex}
+          spec={{ kind: 'bar', unit: '%', digits: 0, categories: womenInService.groups.map((g) => g.name), series: [{ name: 'Women', data: womenInService.groups.map((g) => g.pct) }], highlight: ['All public servants'], labelWidth: 170 }}
+        />
+        <Chart
+          id="nssf"
+          title="NSSF members by sector"
+          subtitle={`Workers contributing to NSSF, ${nssf.years.at(-1)}`}
+          height={300}
+          source={sources.nssf}
+          spec={{ kind: 'bar', unit: '', digits: 0, categories: nssfSectors.map((x) => x.name), series: [{ name: 'Members', data: nssfSectors.map((x) => x.total) }], labelWidth: 260 }}
+        />
       </div>
     </section>
 

@@ -6,7 +6,7 @@ interface Src { title: string; url: string; updated: string | null }
 type BySex = Record<'Male' | 'Female' | 'Total', (number | null)[]>;
 
 const raw = jobsJson as unknown as {
-  sources: Record<'key' | 'youth' | 'epr' | 'industry' | 'status' | 'earnings', Src>;
+  sources: Record<'key' | 'youth' | 'epr' | 'industry' | 'status' | 'earnings' | 'civil_service' | 'wage_bill' | 'civil_service_sex' | 'pensioners' | 'nssf' | 'nssf_employers', Src>;
   surveys: string[];
   working_age_millions: number[];
   working_millions: number[];
@@ -16,10 +16,38 @@ const raw = jobsJson as unknown as {
   industry: { surveys: string[]; rows: { name: string; values: number[] }[] };
   status_by_education: { columns: string[]; rows: { name: string; values: number[] }[] };
   earnings_2021_ugx_000: { group: string | null; name: string; total: number; male: number; female: number }[];
+  civil_service: { years: string[]; groups: Record<string, number[]>; total: number[] };
+  wage_bill_bn: { years: string[]; groups: Record<string, number[]>; total: number[] };
+  civil_service_women_pct: { year: string; groups: Record<string, number> };
+  pensioners: { years: string[]; rows: { female: number; male: number; total: number }[] };
+  nssf: { years: string[]; sectors: { name: string; male: number[]; female: number[]; total: number[] }[]; total: { male: number[]; female: number[]; total: number[] }; employers: number[] };
   notes: string[];
 };
 
 export const { sources, surveys, youth, industry, notes } = raw;
+export const civilService = raw.civil_service;
+export const wageBill = raw.wage_bill_bn;
+export const pensioners = raw.pensioners;
+export const nssf = raw.nssf;
+
+// Everyday names for the public-service groups (the tables spell them differently).
+const GROUP: Record<string, string> = {
+  'Traditional civil service': 'Ministries & agencies', 'Tradition service': 'Ministries & agencies',
+  'Teaching service': 'Teachers', 'Police and Prisons': 'Police & prisons', 'Police and prisons': 'Police & prisons',
+  'Public Universities': 'Public universities', 'Public universities': 'Public universities',
+  'Local Governments excluding teaching services': 'Local governments', 'Local Governments': 'Local governments',
+  'Local government': 'Local governments', Total: 'All public servants',
+};
+export const groupName = (g: string) => GROUP[g] ?? g;
+export const womenInService = {
+  year: raw.civil_service_women_pct.year,
+  groups: Object.entries(raw.civil_service_women_pct.groups).map(([k, v]) => ({ name: groupName(k), pct: v })),
+};
+const sectorName = (n: string) => n.replace(/\s+/g, ' ').trim().replace(/\bAnd\b/g, 'and').replace(/^(\w)/, (c) => c.toUpperCase());
+export const nssfSectors = nssf.sectors
+  .filter((x) => !/^voluntary/i.test(x.name))
+  .map((x) => ({ name: sectorName(x.name), total: x.total[x.total.length - 1] }))
+  .sort((a, b) => b.total - a.total);
 export const workingMillions = raw.working_millions;
 export const earnings = raw.earnings_2021_ugx_000.map((e) => ({ ...e, name: e.name.trim() }));
 export const statusByEducation = raw.status_by_education;
@@ -51,6 +79,25 @@ export const employeesByEducation = (() => {
 })();
 
 const ugx = (n: number) => `UGX ${Math.round(n).toLocaleString('en-UG')}`;
+
+export function publicFacts() {
+  const L = <T,>(a: T[]) => a[a.length - 1];
+  const cs = civilService, wb = wageBill, pn = pensioners, ns = nssf;
+  const teachers = cs.groups['Teaching service'];
+  const tWage = wb.groups['Teaching service'];
+  const perTeacher = (L(tWage) * 1e9) / L(teachers);
+  const p0 = pn.rows[0], p1 = L(pn.rows);
+  const women = womenInService.groups.find((g) => g.name === 'All public servants');
+  const police = womenInService.groups.find((g) => g.name === 'Police & prisons');
+  return [
+    `Uganda’s public service had ${L(cs.total).toLocaleString('en-UG')} employees in ${L(cs.years)}, up from ${cs.total[0].toLocaleString('en-UG')} in ${cs.years[0]}. ${Math.round((100 * L(teachers)) / L(cs.total))}% are teachers.`,
+    `The public-service wage bill was about UGX ${Math.round(L(wb.total))} billion a month in ${L(wb.years)}, up from UGX ${Math.round(wb.total[0])} billion in ${wb.years[0]}.`,
+    `That works out at roughly UGX ${(Math.round(perTeacher / 10000) * 10000).toLocaleString('en-UG')} a month per teacher on average (${L(wb.years)}).`,
+    ...(women && police ? [`${Math.round(women.pct)}% of public servants were women in ${womenInService.year}, but only ${Math.round(police.pct)}% in the police and prisons.`] : []),
+    `Public-service pensioners rose from ${p0.total.toLocaleString('en-UG')} in ${pn.years[0]} to ${p1.total.toLocaleString('en-UG')} in ${L(pn.years)}.`,
+    `${L(ns.total.total).toLocaleString('en-UG')} workers contributed to NSSF in ${L(ns.years)}, through ${L(ns.employers).toLocaleString('en-UG')} employers. ${Math.round((100 * L(ns.total.female)) / L(ns.total.total))}% of members are women.`,
+  ];
+}
 
 export function facts() {
   const nat = earn('National');
