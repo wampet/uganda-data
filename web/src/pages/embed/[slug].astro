@@ -1,0 +1,42 @@
+---
+// A shareable chart, alone, for other sites to put in an <iframe>. The only
+// pages that may be framed (see public/_headers). Keeps the source line and a
+// link back, so an embedded chart always carries its attribution.
+import '../../styles/global.css';
+import Chart from '../../components/Chart.astro';
+import { sharedCharts, type SharedChart } from '../../lib/share-charts';
+
+export function getStaticPaths() {
+  return sharedCharts.map((c) => ({ params: { slug: c.slug }, props: { c } }));
+}
+
+const { c } = Astro.props as { c: SharedChart };
+const page = new URL(`/charts/${c.slug}/`, Astro.site).href;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{c.title} · Uganda in Data</title>
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href={page} />
+    <script is:inline src="/theme-init.js"></script>
+  </head>
+  <body class="embed font-sans">
+    <Chart id="embedded" title={c.title} subtitle={c.subtitle} spec={c.spec} height={c.height} source={c.source} />
+    <p class="mt-2 flex items-center justify-between gap-3 px-1 text-xs text-ink-3">
+      <span>{c.description.split('. ')[0]}.</span>
+      <a href={page} target="_blank" rel="noopener" class="shrink-0 font-semibold text-ink hover:underline">Uganda in Data ↗</a>
+    </p>
+  </body>
+</html>
+
+<style>
+  .embed {
+    margin: 0;
+    padding: 8px;
+    background: var(--page);
+  }
+</style>

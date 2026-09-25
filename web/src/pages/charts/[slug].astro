@@ -20,6 +20,9 @@ const shareLinks = [
   { name: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}` },
   { name: 'LinkedIn', href: `https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}` },
 ];
+// Embed: the chart alone at /embed/<slug>/, sized to its card (header, controls, footer and credit line, with room for a wrapped legend: ~360px).
+const embedUrl = new URL(`/embed/${c.slug}/`, Astro.site).href;
+const embedCode = `<iframe src="${embedUrl}" title="${c.title.replace(/"/g, '&quot;')} (Uganda in Data)" width="100%" height="${c.height + 360}" style="border:0;max-width:960px" loading="lazy"></iframe>`;
 const related = sharedCharts.filter((x) => x.slug !== c.slug && x.topic === c.topic).slice(0, 3);
 ---
 
@@ -47,6 +50,14 @@ const related = sharedCharts.filter((x) => x.slug !== c.slug && x.topic === c.to
           <button type="button" class="share-btn" id="copy-link" data-url={url}>Copy link</button>
         </div>
         <p id="copy-status" class="mt-2 h-5 text-sm text-ink-3" aria-live="polite"></p>
+        <h3 class="mt-4 text-sm font-semibold">Embed it on your site</h3>
+        <p class="mt-1 text-sm text-ink-2">A live, interactive copy that credits UBOS and links back here.</p>
+        <textarea id="embed-code" readonly rows="3" class="mt-2 w-full resize-none rounded-lg border border-line bg-surface-2 p-2 font-mono text-xs text-ink" aria-label="Embed code">{embedCode}</textarea>
+        <div class="mt-2 flex flex-wrap items-center gap-3">
+          <button type="button" class="share-btn" id="copy-embed">Copy embed code</button>
+          <a class="text-sm text-ink-2 underline decoration-dotted underline-offset-2 hover:text-ink" href={`/embed/${c.slug}/`} target="_blank" rel="noopener">Preview</a>
+          <span id="embed-status" class="text-sm text-ink-3" aria-live="polite"></span>
+        </div>
       </div>
       <div class="card p-5">
         <h2 class="font-semibold">Go deeper</h2>
@@ -77,6 +88,19 @@ const related = sharedCharts.filter((x) => x.slug !== c.slug && x.topic === c.to
 </Base>
 
 <script>
+  const code = document.getElementById('embed-code') as HTMLTextAreaElement;
+  const embedStatus = document.getElementById('embed-status')!;
+  code.addEventListener('focus', () => code.select());
+  document.getElementById('copy-embed')!.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(code.value);
+      embedStatus.textContent = 'Embed code copied.';
+    } catch {
+      code.select();
+      embedStatus.textContent = 'Press Ctrl+C to copy.';
+    }
+  });
+
   const btn = document.getElementById('copy-link') as HTMLButtonElement;
   const status = document.getElementById('copy-status')!;
   btn.addEventListener('click', async () => {
