@@ -80,6 +80,7 @@ const meta = Object.fromEntries(indicators.map((i) => [i.id, { label: i.label, n
               pool: d.pool,
               picker: { label: 'a country', max: 7, initial: initialPicks },
               shadeFrom: d.projFrom ?? undefined,
+              mapView: d.mapView,
             }}
           />
         </div>
@@ -95,7 +96,8 @@ const meta = Object.fromEntries(indicators.map((i) => [i.id, { label: i.label, n
         </div>
         <p class="mt-3 text-sm text-ink-3" id="m-who" hidden>For WHO figures, “Sub-Saharan Africa” is WHO’s Africa region.</p>
         <p class="mt-3 text-sm text-ink-3">
-          IMF figures from this year onwards are projections (shaded). Up to seven countries at a time keeps every line
+          IMF figures from this year onwards are projections (shaded). The Map tab shows every African country’s latest
+          actual figure, with Uganda outlined. Up to seven countries at a time keeps every line
           readable. <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/world/">See how Uganda ranks on every measure →</a>
         </p>
       </div>
@@ -109,7 +111,7 @@ const meta = Object.fromEntries(indicators.map((i) => [i.id, { label: i.label, n
   type Data = {
     id: string; label: string; note: string; unit: string; digits: number; x: number[];
     uganda: (number | null)[]; pool: Record<string, (number | null)[]>; projFrom: number | null;
-    source: { title: string; url: string }; whoRegion: boolean;
+    source: { title: string; url: string }; whoRegion: boolean; mapView: unknown;
   };
   const state = JSON.parse(document.getElementById('world-state')!.textContent!) as {
     first: Data; meta: Record<string, { label: string; note: string; topic: string; source: string }>;
@@ -181,7 +183,7 @@ const meta = Object.fromEntries(indicators.map((i) => [i.id, { label: i.label, n
     document.title = `${d.label}: Uganda compared · Uganda in Data`;
     line.dispatchEvent(new CustomEvent('chart:update', { detail: {
       title: d.label, unit: d.unit, digits: d.digits, x: d.x,
-      series: [{ name: 'Uganda', data: d.uganda, color: 1 }], pool: d.pool, shadeFrom: d.projFrom ?? undefined,
+      series: [{ name: 'Uganda', data: d.uganda, color: 1 }], pool: d.pool, shadeFrom: d.projFrom ?? undefined, mapView: d.mapView,
     } }));
     for (const el of [line, rank]) {
       const a = el.querySelector<HTMLAnchorElement>('footer a[rel="noopener"]');

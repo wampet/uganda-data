@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 
 from .config import AGG_LABEL_OVERRIDE, AGGREGATES, GROUPS, INDICATORS, PLACES, SOURCES, TOPICS
+from .africa import build_geo, latest_all
 from .fetch import FETCH
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +26,8 @@ BOUNDS = {"%": (-60, 1000), "% of GDP": (-100, 400), "% of people": (0, 100.5), 
 
 def build(refresh: bool = False) -> dict:
     this_year = dt.date.today().year
+    africa_names = build_geo()
+    isos = set(africa_names)
     indicators = []
     for iid, source, code, label, unit, digits, topic, better, note in INDICATORS:
         series = FETCH[source](code, refresh=refresh)
@@ -50,7 +53,11 @@ def build(refresh: bool = False) -> dict:
             "years": years,
             "values": {p: [round(series[p][y], 4) if y in series[p] else None for y in years] for p in PLACES if p in series},
             "latestYear": latest,
+            # Every African country's newest actual value, for the Map tab.
+            "africa": latest_all(source, code, isos, proj_from, refresh=refresh),
         })
+        if "UGA" not in indicators[-1]["africa"]:
+            raise ValueError(f"world: Africa map values for {iid} have no Uganda")
         print(f"    {iid:20} {source:3} {len(covered):2} places, {years[0]}–{years[-1]}")
 
     data = {
@@ -60,6 +67,7 @@ def build(refresh: bool = False) -> dict:
         "groups": GROUPS,
         "topics": TOPICS,
         "indicators": indicators,
+        "africaNames": africa_names,
     }
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"  wrote {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1024:.0f} KB), {len(indicators)} indicators")

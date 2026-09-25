@@ -124,6 +124,35 @@ export function standouts(groupId: string) {
 }
 
 // ---- series for charts --------------------------------------------------------------
+const africaNames = (worldJson as unknown as { africaNames: Record<string, string> }).africaNames;
+
+/** Up to 5 quantile classes over Africa's values, rounded to the measure's digits (legend-friendly). */
+function quantileBreaks(values: number[], digits: number) {
+  const v = [...values].sort((a, b) => a - b);
+  if (v.length < 6) return [];
+  const round = (x: number) => {
+    const mag = 10 ** Math.max(0, Math.floor(Math.log10(Math.abs(x) || 1)) - 1);
+    return digits === 0 || Math.abs(x) >= 100 ? Math.round(x / mag) * mag : Number(x.toFixed(digits));
+  };
+  const cuts = [1, 2, 3, 4].map((k) => round(v[Math.floor((k * v.length) / 5)]));
+  return [...new Set(cuts)].sort((a, b) => a - b);
+}
+
+/** The Map tab: every African country's latest actual value, Uganda outlined. */
+export function africaMap(i: WorldIndicator) {
+  const africa = (i as WorldIndicator & { africa: Record<string, [number, number]> }).africa ?? {};
+  const values = Object.fromEntries(Object.keys(africaNames).map((iso) => [iso, africa[iso]?.[1] ?? null]));
+  const nums = Object.values(values).filter((v): v is number => v != null);
+  return {
+    geo: '/geo/africa.json',
+    values,
+    names: africaNames,
+    breaks: quantileBreaks(nums, i.digits),
+    highlight: 'UGA',
+    reference: { label: 'Uganda', value: africa.UGA?.[1] ?? null },
+  };
+}
+
 /** Chart-ready data for one indicator: years, Uganda, and a pool of every other place by name. */
 export function chartData(i: WorldIndicator) {
   const round = (v: number | null) => (v == null ? null : Number(v.toFixed(Math.max(i.digits, 2))));
@@ -142,5 +171,6 @@ export function chartData(i: WorldIndicator) {
     projFrom: i.projFrom,
     source: sourceOf(i),
     whoRegion: i.source === 'who',
+    mapView: africaMap(i),
   };
 }
