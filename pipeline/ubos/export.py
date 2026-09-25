@@ -1683,6 +1683,149 @@ def build_governance(records: list[dict]) -> None:
     })
 
 
+def _simple_table(records: list[dict], title_start: str) -> tuple[dict, list[str], dict[str, list]]:
+    """A small UBOS table: a header row of years, then one label column and one value per year.
+
+    Leading empty columns are dropped; rows without numbers (section headings) are kept as None-only entries
+    under their name so callers can tell sections apart ("Cargo" / "Mail")."""
+    from .parsers import wide
+
+    src = _dataset(records, title_start)
+    rows = [r for r in wide.load(get_file(src["url"])) if any(v not in (None, "") for v in r)]
+    lead = min(next((j for j, v in enumerate(r) if v not in (None, "")), 0) for r in rows)
+    rows = [r[lead:] for r in rows]
+    h = next(i for i, r in enumerate(rows) if sum(1 for c in r if wide.year_of(c)) >= 3)
+    cols = [(j, wide.year_of(c)) for j, c in enumerate(rows[h]) if wide.year_of(c)]
+    out, section = {}, None
+    for r in rows[h + 1:]:
+        name = " ".join(str(r[0]).split()) if r[0] is not None else ""
+        if not name or name.lower().startswith(("source", "note", "*", "otv refers")):
+            continue
+        vals = [wide.num(r[j]) if j < len(r) else None for j, _ in cols]
+        if all(v is None for v in vals):
+            section = name
+            continue
+        key = f"{section} · {name}" if section and name in {k.split(" · ")[-1] for k in out} else name
+        out[key if key not in out else f"{section} · {name}"] = vals
+    return src, [y for _, y in cols], out
+
+
+def build_travel_and_building(records: list[dict]) -> None:
+    """Transport, tourism and construction tables for three extra Production pages."""
+    from .parsers import wide
+
+    def check_total(name, parts, total, years, tol=2):
+        for i, y in enumerate(years):
+            if abs(sum(p[i] or 0 for p in parts) - (total[i] or 0)) > tol:
+                raise ValueError(f"{name}: parts don't add up to the total in {y}")
+
+    # ---- Transport ------------------------------------------------------------------
+    s_lic, lic_years, lic = _simple_table(records, "Number of Licensed Public vehicles")
+    s_rail, rail_years, rail = _simple_table(records, "Railway Statistics from 2019")
+    s_air, air_years, air = _simple_table(records, "Volume of Cargo through Entebbe")
+    cargo = {k: v for k, v in air.items() if not k.startswith("Mail")}
+    check_total("transport: Entebbe cargo", [cargo["Off-loaded"], cargo["Loaded"]], cargo["Total"], air_years)
+    _write("transport_more.json", {
+        "sources": {"licences": _src(s_lic), "railway": _src(s_rail), "air_cargo": _src(s_air)},
+        "licences": {"years": lic_years, "rows": lic},
+        # Only tonnage, ferries and safety: from 2021 the other railway measures change units (e.g. transit
+        # time jumps from 17 to 182 "days").
+        "railway": {"years": rail_years, "tonnes": rail["Net tones"], "ton_km_000": rail["Net ton-km ('000)"],
+                    "port_bell": rail["Net tonnes by rail ferries through Port Bell"],
+                    "jinja_pier": rail["Net tonnes by rail ferries through Jinja Pier"],
+                    "accidents": rail["Number of reported accidents"]},
+        "air_cargo": {"years": air_years, "offloaded": cargo["Off-loaded"], "loaded": cargo["Loaded"], "total": cargo["Total"]},
+        "notes": [
+            "Licences are those issued each year by the Transport Licensing Board; many boda bodas and taxis operate "
+            "without one, so these are not counts of vehicles on the road. UBOS’s title says 2013–2023, but the table ends in 2022.",
+            "Railway figures are for Uganda Railways Corporation. From 2021 several of its performance measures (wagon "
+            "transit times, productivity) jump about tenfold at once, which looks like a change of units, so only freight "
+            "tonnage, lake ferry cargo and accidents are shown.",
+            "Air cargo is freight through Entebbe International Airport: “loaded” leaves Uganda, “off-loaded” arrives.",
+        ],
+    })
+
+    # ---- Tourism and travel -------------------------------------------------------------
+    s_month = _dataset(records, "Total Arrivals and Departures by Month, 2023")
+    rows = [r for r in wide.load(get_file(s_month["url"])) if any(v not in (None, "") for v in r)]
+    months = [r for r in rows if str(r[0]).strip() in
+              ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")]
+    arrivals_month = [{"month": str(r[0]).strip()[:3], "arrivals": wide.num(r[3]), "departures": wide.num(r[6])} for r in months]
+    m_total = next(r for r in rows if str(r[0]).strip() == "Total")
+    if abs(sum(m["arrivals"] for m in arrivals_month) - wide.num(m_total[3])) > 3:
+        raise ValueError("tourism: monthly arrivals don't add up to the 2023 total")
+
+    s_border = _dataset(records, "Total Arrivals and Departures by Border and Sex")
+    rows = [r for r in wide.load(get_file(s_border["url"])) if any(v not in (None, "") for v in r)]
+    borders = [{"name": str(r[0]).strip(), "arrivals": wide.num(r[3]), "departures": wide.num(r[6])}
+               for r in rows[3:] if r[0] and wide.num(r[3]) is not None and str(r[0]).strip() != "Total"]
+    b_total = next(r for r in rows if str(r[0]).strip() == "Total")
+    if abs(sum(b["arrivals"] for b in borders) - wide.num(b_total[3])) > 5:
+        raise ValueError("tourism: border arrivals don't add up to the total")
+
+    s_eac, eac_years, eac = _simple_table(records, "Arrivals from and Departures to the EAC")
+    eac_arr = {k.strip(): v for k, v in eac.items() if k.strip() in ("Burundi", "Kenya", "Rwanda", "South Sudan*", "Tanzania")}
+    eac_arr = {k.rstrip("*"): v for k, v in list(eac_arr.items())}
+    check_total("tourism: EAC arrivals", list(eac_arr.values()), eac["Total Arrivals -EAC"], eac_years, tol=3)
+
+    s_room = _dataset(records, "Room Occupancy by Financial Year Quarters and Region")
+    rows = [r for r in wide.load(get_file(s_room["url"])) if any(v not in (None, "") for v in r)]
+    rows = [r[1:] for r in rows]  # table starts in column B
+    rooms = [{"region": str(r[0]).strip(), "y2019": wide.num(r[7]), "y2020": wide.num(r[8])}
+             for r in rows if r[0] and str(r[0]).strip() in ("Central", "Eastern", "Kampala", "Western", "Northern", "Uganda")]
+    if len(rooms) != 6 or any(x["y2019"] is None or x["y2020"] is None for x in rooms):
+        raise ValueError("tourism: room occupancy table not where expected")
+
+    attractions = {}
+    for key, title in (("Source of the Nile", "Category of Visitors to the Source of the Nile"),
+                       ("Uganda Museum", "Category of Visitors to the Uganda Museum"),
+                       ("Uganda Wildlife Education Centre", "Category of Visitors to Uganda Wildlife Education")):
+        src, ys, t = _simple_table(records, title)
+        total = t.pop("Total")
+        check_total(f"tourism: {key} visitors", list(t.values()), total, ys)
+        schools = next(v for k, v in t.items() if k.lower().startswith("school"))
+        attractions[key] = {"source": _src(src), "years": ys, "total": total, "schools": schools}
+
+    _write("tourism_more.json", {
+        "sources": {"months": _src(s_month), "borders": _src(s_border), "eac": _src(s_eac), "rooms": _src(s_room)}
+        | {k: v["source"] for k, v in attractions.items()},
+        "arrivals_2023_000": {"months": arrivals_month, "total": wide.num(m_total[3])},
+        "borders_2023_000": sorted(borders, key=lambda b: -b["arrivals"]),
+        "eac_arrivals_000": {"years": eac_years, "countries": eac_arr},
+        "room_occupancy": rooms,
+        "attractions": {k: {kk: vv for kk, vv in v.items() if kk != "source"} for k, v in attractions.items()},
+        "notes": [
+            "Arrivals and departures count every crossing at official borders and airports, by Ugandans and foreigners, "
+            "in thousands.",
+            "EAC arrivals are people resident in each neighbouring country; UBOS gives no figures for 2018 and 2021, "
+            "and none for Tanzania in 2022.",
+            "Hotel room occupancy is the share of rooms taken; 2020 includes the COVID-19 lockdowns.",
+            "Visitor numbers are from the Uganda Wildlife Authority.",
+        ],
+    })
+
+    # ---- Construction: building plans --------------------------------------------------
+    plans = {}
+    for key, title in (("submitted", "Number of Plans Submitted from 2016"), ("approved", "Number of Plans Approved from 2016"),
+                       ("rejected", "Number of Plans Rejected"), ("deferred", "Number of Plans Deferred"),
+                       ("permits", "Number of Occupational Permits")):
+        src, ys, t = _simple_table(records, title)
+        total = t.pop("Total")
+        check_total(f"construction: plans {key}", list(t.values()), total, ys)
+        plans[key] = {"source": _src(src), "years": ys, "total": total, "categories": t}
+    _write("building.json", {
+        "sources": {k: v["source"] for k, v in plans.items()},
+        **{k: {kk: vv for kk, vv in v.items() if kk != "source"} for k, v in plans.items()},
+        "notes": [
+            "Building plans are applications to build, handled by urban authorities. UBOS does not say which councils the "
+            "tables cover.",
+            "Plans approved, rejected or deferred in a year can include plans submitted in earlier years, so they are not "
+            "shares of that year’s submissions.",
+            "An occupation permit certifies that a finished building is safe to use.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -1703,3 +1846,4 @@ def build(refresh: bool = False) -> None:
     build_wellbeing(records)
     build_mining(records)
     build_governance(records)
+    build_travel_and_building(records)

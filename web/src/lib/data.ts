@@ -86,8 +86,28 @@ const environmentPage = {
   blurb: 'Forest loss and farmland since 2000, forest reserves, how hot each town gets, and piped water supply.',
 };
 
+// Extra Production pages (kept separate from the section's main pages above).
+const morePages = {
+  transport: [{
+    href: '/production/transport/rail-air-and-licences/',
+    title: 'Rail, air cargo and transport licences',
+    blurb: 'Railway and lake ferry freight, cargo through Entebbe, and boda boda and taxi licences since 2013.',
+  }],
+  tourism: [{
+    href: '/production/tourism/travel-and-attractions/',
+    title: 'Who travels, and where they go',
+    blurb: 'Arrivals by month and border, hotel occupancy, and visitors to the Source of the Nile, the museum and the Entebbe zoo.',
+  }],
+  construction: [{
+    href: '/production/construction/building-plans/',
+    title: 'Building plans and permits',
+    blurb: 'Plans submitted, approved, rejected and deferred, and how few buildings get occupation permits.',
+  }],
+};
+
 export const featured: Record<string, { href: string; title: string; blurb: string }[]> = {
   ...productionPages,
+  ...Object.fromEntries(Object.entries(morePages).map(([k, v]) => [k, [...(productionPages[k as keyof typeof productionPages] ?? []), ...v]])),
   'admin-units': [districtExplorer],
   land: [environmentPage],
   climate: [environmentPage],

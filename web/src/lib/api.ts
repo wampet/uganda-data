@@ -19,6 +19,9 @@ import censusJson from '../data/census.json';
 import wbJson from '../data/wellbeing.json';
 import miningJson from '../data/mining.json';
 import govSurveyJson from '../data/governance.json';
+import transportMoreJson from '../data/transport_more.json';
+import tourismMoreJson from '../data/tourism_more.json';
+import buildingJson from '../data/building.json';
 import { chartRows } from './chart-options';
 import { sharedCharts } from './share-charts';
 import { districts, indicators, national, source as censusSource } from './census';
@@ -72,6 +75,9 @@ export const datasets: Dataset[] = [
   ds('wellbeing', 'National standard indicators', 'UBOS’s scorecard for lower-middle-income status, multidimensional poverty, electricity access and more.', '/wellbeing/nsi-income/national-scorecard/', wbJson),
   ds('mining', 'Mineral production', 'Value and quantity of recorded mineral production by mineral, 2019–2023.', '/production/mining/minerals/', miningJson),
   ds('governance', 'Justice and elections (survey)', 'Where people take grievances, satisfaction with justice processes and reported election irregularities (published 2018).', '/people/governance/justice-and-elections/', govSurveyJson),
+  ds('transport-extra', 'Rail, air cargo and transport licences', 'Railway and ferry freight, Entebbe air cargo and public transport licences issued.', '/production/transport/rail-air-and-licences/', transportMoreJson),
+  ds('travel', 'Arrivals, hotels and attractions', 'Arrivals by month and border (2023), EAC visitors, hotel occupancy and visitors to major attractions.', '/production/tourism/travel-and-attractions/', tourismMoreJson),
+  ds('building-plans', 'Building plans and permits', 'Building plans submitted, approved, rejected and deferred, and occupation permits, 2016–2020.', '/production/construction/building-plans/', buildingJson),
   ds('districts', 'Census 2024 by district', 'Indicators for every district, city and sub-region from the 2024 census.', '/places/districts/', censusJson),
 ];
 

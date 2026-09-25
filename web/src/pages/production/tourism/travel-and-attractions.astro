@@ -1,0 +1,96 @@
+---
+import StoryPage from '../../../components/StoryPage.astro';
+import Chart from '../../../components/Chart.astro';
+import { tourism as M, tourismFacts } from '../../../lib/travel';
+
+const facts = tourismFacts();
+const n0 = (v: number) => Math.round(v).toLocaleString('en-UG');
+const ug = M.rooms.find((r) => r.region === 'Uganda')!;
+const regions = M.rooms.filter((r) => r.region !== 'Uganda').sort((a, b) => b.y2019 - a.y2019);
+const attr = Object.entries(M.attractions);
+const nile = M.attractions['Source of the Nile'];
+const L = nile.years.length - 1;
+const ent = M.borders.find((b) => b.name === 'Entebbe')!;
+const tiles = [
+  { label: 'Arrivals, 2023', value: `${(M.arrivalsTotal / 1000).toFixed(1)} million`, note: 'crossings into Uganda' },
+  { label: 'Through Entebbe', value: `${Math.round((100 * ent.arrivals) / M.arrivalsTotal)}%`, note: 'of arrivals, 2023' },
+  { label: 'Hotel rooms taken', value: `${Math.round(ug.y2019)}% → ${Math.round(ug.y2020)}%`, note: '2019 → 2020' },
+  { label: `Source of the Nile, ${nile.years[L]}`, value: n0(nile.total[L]), note: 'visitors' },
+];
+---
+
+<StoryPage
+  title="Who travels, and where they go"
+  description={`About ${(M.arrivalsTotal / 1000).toFixed(1)} million arrivals into Uganda in 2023. See arrivals by month and border, hotel occupancy and visitors to the Source of the Nile, the museum and the Entebbe zoo.`}
+  crumbs={[{ href: '/production/', label: 'Production' }, { href: '/production/tourism/', label: 'Tourism' }]}
+  kicker="Tourism · Ministry of Internal Affairs, UBOS and Uganda Wildlife Authority"
+  lead={`${facts[0]} ${facts[1]}`}
+  tiles={tiles}
+  facts={facts}
+  notes={M.notes}
+  sources={Object.values(M.sources)}
+>
+  <section class="grid gap-4 lg:grid-cols-2">
+    <Chart
+      id="months"
+      title="Arrivals by month, 2023"
+      subtitle="Thousands of arrivals into Uganda"
+      height={320}
+      source={M.sources.months}
+      spec={{ kind: 'line', unit: 'k', digits: 0, x: M.months.map((m) => m.month), yMin: 0, series: [
+        { name: 'Arrivals', data: M.months.map((m) => m.arrivals), color: 1, points: true },
+        { name: 'Departures', data: M.months.map((m) => m.departures), color: 2, points: true },
+      ] }}
+    />
+    <Chart
+      id="borders"
+      share="uganda-border-arrivals"
+      title="Where people enter Uganda"
+      subtitle="Arrivals by border post, thousands, 2023"
+      height={320}
+      source={M.sources.borders}
+      spec={{ kind: 'bar', unit: 'k', digits: 0, categories: M.borders.map((b) => b.name), series: [{ name: 'Arrivals (000s)', data: M.borders.map((b) => b.arrivals) }], labelWidth: 110 }}
+    />
+  </section>
+
+  <section class="mt-12 grid gap-4 lg:grid-cols-2">
+    <Chart
+      id="eac"
+      title="Visitors from neighbouring countries"
+      subtitle="Arrivals of residents of each EAC country, thousands"
+      height={320}
+      source={M.sources.eac}
+      spec={{ kind: 'line', unit: 'k', digits: 0, x: M.eac.years, yMin: 0, series: Object.entries(M.eac.countries).map(([c, v], i) => ({ name: c, data: v, color: i + 1, points: true })) }}
+    />
+    <Chart
+      id="hotels"
+      title="Hotels emptied in 2020"
+      subtitle="% of hotel rooms occupied, by region"
+      height={320}
+      source={M.sources.rooms}
+      spec={{ kind: 'bar', unit: '%', digits: 0, categories: [...regions.map((r) => r.region), 'Uganda'], series: [
+        { name: '2019', data: [...regions.map((r) => r.y2019), ug.y2019], color: 'muted' },
+        { name: '2020', data: [...regions.map((r) => r.y2020), ug.y2020], color: 2 },
+      ], labelWidth: 80 }}
+    />
+  </section>
+
+  <section class="mt-12">
+    <Chart
+      id="attractions"
+      share="uganda-attraction-visitors"
+      title="Popular days out, mostly school trips"
+      subtitle="Visitors a year, all categories"
+      height={340}
+      source={M.sources['Source of the Nile']}
+      spec={{ kind: 'line', unit: '', digits: 0, x: nile.years, yMin: 0, series: attr.map(([k, v], i) => ({ name: k, data: v.total, color: i + 1, points: true })) }}
+    />
+    <p class="mt-3 text-sm text-ink-3">
+      School groups made up {attr.map(([k, v]) => `${Math.round((100 * v.schools[L]) / v.total[L])}% at the ${k}`).join(', ')} in {nile.years[L]}.
+    </p>
+  </section>
+
+  <p class="mt-6 text-sm text-ink-3">
+    More on tourists and national parks: <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/production/tourism/visitors/">Visitors to Uganda</a>
+  </p>
+</StoryPage>

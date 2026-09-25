@@ -20,6 +20,7 @@ import * as CR from './crime';
 import * as GE from './gender';
 import * as WB from './wellbeing';
 import * as MN from './mining';
+import * as TV from './travel';
 
 export interface SharedChart {
   slug: string;
@@ -373,6 +374,59 @@ export const sharedCharts: SharedChart[] = [
     source: src(GF.sources.functions),
     page: { href: '/economy/government-finance/where-the-money-goes/', label: 'More on government money' },
     topic: 'Economy',
+  },
+  {
+    slug: 'uganda-air-cargo',
+    title: 'More cargo flies out of Entebbe than in',
+    subtitle: 'Cargo through Entebbe International Airport, tonnes',
+    description: TV.transportFacts()[1],
+    spec: { kind: 'bar', stacked: true, unit: ' t', digits: 0, categories: TV.transport.air.years, series: [
+      { name: 'Flown out', data: TV.transport.air.loaded, color: 1 },
+      { name: 'Flown in', data: TV.transport.air.offloaded, color: 2 },
+    ], labelWidth: 60 },
+    height: 400,
+    source: src(TV.transport.sources.air_cargo),
+    page: { href: '/production/transport/rail-air-and-licences/', label: 'More on rail and air cargo' },
+    topic: 'Production',
+  },
+  {
+    slug: 'uganda-border-arrivals',
+    title: 'Where people enter Uganda',
+    subtitle: 'Arrivals by border post, thousands, 2023',
+    description: TV.tourismFacts()[1],
+    spec: { kind: 'bar', unit: 'k', digits: 0, categories: TV.tourism.borders.map((b) => b.name), series: [{ name: 'Arrivals (000s)', data: TV.tourism.borders.map((b) => b.arrivals) }], labelWidth: 120 },
+    height: 460,
+    source: src(TV.tourism.sources.borders),
+    page: { href: '/production/tourism/travel-and-attractions/', label: 'More on travel' },
+    topic: 'Production',
+  },
+  {
+    slug: 'uganda-attraction-visitors',
+    title: 'Popular days out in Uganda',
+    subtitle: 'Visitors a year',
+    description: `${TV.tourismFacts()[3]} ${TV.tourismFacts()[4]}`,
+    spec: (() => {
+      const a = Object.entries(TV.tourism.attractions);
+      return { kind: 'line' as const, unit: '', digits: 0, x: a[0][1].years, yMin: 0, series: a.map(([k, v], i) => ({ name: k, data: v.total, color: i + 1, points: true })) };
+    })(),
+    height: 400,
+    source: src(TV.tourism.sources['Source of the Nile']),
+    page: { href: '/production/tourism/travel-and-attractions/', label: 'More on travel' },
+    topic: 'Production',
+  },
+  {
+    slug: 'uganda-building-plans',
+    title: 'Building plans submitted and approved',
+    subtitle: 'Building plans a year',
+    description: TV.buildingFacts()[0],
+    spec: { kind: 'line', unit: '', digits: 0, x: TV.building.submitted.years, yMin: 0, series: [
+      { name: 'Submitted', data: TV.building.submitted.years.map((y) => TV.planIn(TV.building.submitted, y)), color: 1, points: true },
+      { name: 'Approved', data: TV.building.submitted.years.map((y) => TV.planIn(TV.building.approved, y)), color: 3, points: true },
+    ] },
+    height: 400,
+    source: src(TV.building.sources.submitted),
+    page: { href: '/production/construction/building-plans/', label: 'More on building plans' },
+    topic: 'Production',
   },
   {
     slug: 'uganda-mineral-production',

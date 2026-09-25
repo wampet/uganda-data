@@ -1,0 +1,90 @@
+---
+// The frame every story page shares: breadcrumb, headline with key figures,
+// a rotating "Did you know?" fact, the charts (slot), and notes + sources.
+import { safeJson } from '../lib/json';
+import Base from '../layouts/Base.astro';
+
+interface Props {
+  title: string;
+  /** <title> tag; defaults to `title` */
+  pageTitle?: string;
+  description: string;
+  crumbs: { href: string; label: string }[];
+  kicker: string;
+  lead: string;
+  tiles: { label: string; value: string; note: string }[];
+  facts: string[];
+  notes: string[];
+  sources: { title: string; url: string }[];
+}
+const { title, pageTitle, description, crumbs, kicker, lead, tiles, facts, notes, sources } = Astro.props;
+const uniqueSources = sources.filter((s, i) => sources.findIndex((x) => x.url === s.url) === i);
+const firstFact = facts.length > 1 ? 1 : 0;
+---
+
+<Base title={pageTitle ?? title} description={description}>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      {crumbs.map((c, i) => (
+        <>{i > 0 && <span class="px-1.5" aria-hidden="true">/</span>}<a class="hover:text-ink" href={c.href}>{c.label}</a></>
+      ))}
+    </nav>
+
+    <header class="grid gap-8 pb-10 pt-6 lg:grid-cols-[1.1fr_1fr] lg:items-end">
+      <div>
+        <p class="text-sm font-medium text-brand-ink">{kicker}</p>
+        <h1 class="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{title}</h1>
+        <p class="mt-3 max-w-xl text-lg text-ink-2">{lead}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        {tiles.map((t) => (
+          <div class="card p-4">
+            <p class="text-sm text-ink-2">{t.label}</p>
+            <p class="mt-1 text-2xl font-semibold tracking-tight">{t.value}</p>
+            <p class="mt-1 text-xs text-ink-3">{t.note}</p>
+          </div>
+        ))}
+      </div>
+    </header>
+
+    {facts.length > 0 && (
+      <section aria-label="Key facts" class="card mb-10 flex items-start gap-4 p-4 sm:p-5" data-facts>
+        <span class="mt-0.5 rounded-md bg-brand px-2 py-0.5 text-xs font-semibold text-black">Did you know?</span>
+        <p class="min-h-12 flex-1 text-ink" aria-live="polite" data-fact data-index={firstFact}>{facts[firstFact]}</p>
+        <button type="button" data-fact-next class="shrink-0 rounded-lg px-2 py-1 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">Next fact →</button>
+        <script type="application/json" data-facts-json set:html={safeJson(facts)} />
+      </section>
+    )}
+
+    <slot />
+
+    <section class="mt-10 grid gap-4 md:grid-cols-2">
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
+        <ul class="mt-2 list-disc space-y-1.5 pl-5 text-sm">
+          {notes.map((n) => <li>{n}</li>)}
+        </ul>
+      </div>
+      <div class="card p-5 text-ink-2">
+        <h2 class="text-lg font-semibold text-ink">Where this comes from</h2>
+        <ul class="mt-2 space-y-1 text-sm">
+          {uniqueSources.map((s) => (
+            <li><a class="text-ink underline decoration-dotted underline-offset-2" href={s.url} rel="noopener">{s.title}</a></li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  for (const box of document.querySelectorAll<HTMLElement>('[data-facts]')) {
+    const facts: string[] = JSON.parse(box.querySelector('[data-facts-json]')!.textContent!);
+    const p = box.querySelector<HTMLElement>('[data-fact]')!;
+    let i = Number(p.dataset.index ?? 0);
+    box.querySelector('[data-fact-next]')!.addEventListener('click', () => {
+      i = (i + 1) % facts.length;
+      p.textContent = facts[i];
+    });
+  }
+</script>

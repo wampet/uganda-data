@@ -20,6 +20,7 @@ import * as CR from '../lib/crime';
 import * as GE from '../lib/gender';
 import * as WB from '../lib/wellbeing';
 import * as MN from '../lib/mining';
+import * as TV from '../lib/travel';
 import { sharedCharts } from '../lib/share-charts';
 
 const datasetCount = catalog.filter((c) => c.kind === 'dataset').length;
@@ -52,7 +53,7 @@ const safe = (f: () => string[]) => {
 };
 const mixedFacts = [
   C.facts()[1], R.facts()[0], V.facts()[1], E.facts()[1], H.facts()[0], J.facts()[1], T.facts()[1], GF.facts()[2],
-  safe(PR.mobileMoneyFacts), safe(PR.energyFacts), safe(PR.tourismFacts), EN.facts()[1], BK.facts()[1], CR.facts()[5], GE.facts()[0], WB.facts()[4], MN.facts()[1], P.facts()[2],
+  safe(PR.mobileMoneyFacts), safe(PR.energyFacts), safe(PR.tourismFacts), EN.facts()[1], BK.facts()[1], CR.facts()[5], GE.facts()[0], WB.facts()[4], MN.facts()[1], TV.tourismFacts()[3], P.facts()[2],
 ].filter((f): f is string => Boolean(f));
 
 // All in-depth stories, grouped by section (from the shared `featured` registry).

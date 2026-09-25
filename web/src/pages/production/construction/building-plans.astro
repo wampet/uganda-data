@@ -1,0 +1,71 @@
+---
+import StoryPage from '../../../components/StoryPage.astro';
+import Chart from '../../../components/Chart.astro';
+import { building as B, buildingFacts, planIn } from '../../../lib/travel';
+
+const facts = buildingFacts();
+const n0 = (v: number) => Math.round(v).toLocaleString('en-UG');
+const years = B.submitted.years;
+const L = years.length - 1;
+const at = (p: typeof B.submitted) => years.map((y) => planIn(p, y));
+const peak = Math.max(...B.submitted.total);
+const cats = Object.keys(B.submitted.categories);
+const tiles = [
+  { label: `Plans submitted, ${years[L]}`, value: n0(B.submitted.total[L]), note: `peak ${n0(peak)} in ${years[B.submitted.total.indexOf(peak)]}` },
+  { label: `Plans approved, ${years[L]}`, value: n0(B.approved.total[L]), note: 'including earlier submissions' },
+  { label: `Rejected, ${years[L]}`, value: n0(planIn(B.rejected, years[L]) ?? 0), note: `${n0(planIn(B.deferred, years[L]) ?? 0)} deferred` },
+  { label: `Occupation permits, ${years[L]}`, value: n0(B.permits.total[L]), note: 'buildings certified safe to use' },
+];
+---
+
+<StoryPage
+  title="Building plans and permits"
+  description={`${n0(B.submitted.total[L])} building plans were submitted in ${years[L]}. See how many are approved, rejected or deferred, and how few buildings get occupation permits.`}
+  crumbs={[{ href: '/production/', label: 'Production' }, { href: '/production/construction/', label: 'Construction' }]}
+  kicker="Construction · UBOS building plan statistics"
+  lead={`${facts[0]} ${facts[1]}`}
+  tiles={tiles}
+  facts={facts}
+  notes={B.notes}
+  sources={Object.values(B.sources)}
+>
+  <section class="grid gap-4 lg:grid-cols-2">
+    <Chart
+      id="plans"
+      share="uganda-building-plans"
+      title="Plans submitted and approved"
+      subtitle="Building plans a year"
+      height={340}
+      source={B.sources.submitted}
+      spec={{ kind: 'line', unit: '', digits: 0, x: years, yMin: 0, series: [
+        { name: 'Submitted', data: at(B.submitted), color: 1, points: true },
+        { name: 'Approved', data: at(B.approved), color: 3, points: true },
+        { name: 'Deferred', data: at(B.deferred), color: 4, points: true },
+        { name: 'Rejected', data: at(B.rejected), color: 2, points: true },
+      ] }}
+    />
+    <Chart
+      id="types"
+      title="What people want to build"
+      subtitle="Plans submitted by type of building"
+      height={340}
+      source={B.sources.submitted}
+      spec={{ kind: 'bar', stacked: true, unit: '', digits: 0, categories: years, series: cats.map((c, i) => ({ name: c, data: B.submitted.categories[c].map((v) => v ?? 0), color: i + 1 })), labelWidth: 50 }}
+    />
+  </section>
+
+  <section class="mt-12">
+    <Chart
+      id="permits"
+      title="Few finished buildings are certified"
+      subtitle="Occupation permits issued, by type of building"
+      height={320}
+      source={B.sources.permits}
+      spec={{ kind: 'bar', stacked: true, unit: '', digits: 0, categories: B.permits.years, series: Object.entries(B.permits.categories).map(([c, v], i) => ({ name: c, data: v.map((x) => x ?? 0), color: i + 1 })), labelWidth: 50 }}
+    />
+  </section>
+
+  <p class="mt-6 text-sm text-ink-3">
+    Building costs (cement, iron bars, timber) and cement supply are on the Production section’s construction pages.
+  </p>
+</StoryPage>

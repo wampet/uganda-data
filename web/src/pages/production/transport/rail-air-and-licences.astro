@@ -1,0 +1,69 @@
+---
+import StoryPage from '../../../components/StoryPage.astro';
+import Chart from '../../../components/Chart.astro';
+import { transport as T, transportFacts } from '../../../lib/travel';
+
+const facts = transportFacts();
+const L = <X,>(a: X[]) => a[a.length - 1];
+const n0 = (v: number) => Math.round(v).toLocaleString('en-UG');
+const tiles = [
+  { label: `Rail freight, ${L(T.railway.years)}`, value: `${n0(L(T.railway.tonnes))} t`, note: `from ${n0(T.railway.tonnes[0])} t in ${T.railway.years[0]}` },
+  { label: `Air cargo out of Entebbe, ${L(T.air.years)}`, value: `${n0(L(T.air.loaded))} t`, note: `${n0(L(T.air.offloaded))} t flown in` },
+  { label: `Rail accidents, ${L(T.railway.years)}`, value: n0(L(T.railway.accidents)), note: `${n0(Math.max(...T.railway.accidents))} at the peak` },
+  { label: `Boda boda licences, ${L(T.licenceYears)}`, value: n0(L(T.licences[0].data) ?? 0), note: 'issued that year' },
+];
+---
+
+<StoryPage
+  title="Rail, air cargo and transport licences"
+  description={`Uganda Railways carried ${n0(L(T.railway.tonnes))} tonnes of freight in ${L(T.railway.years)}. See rail and lake freight, air cargo through Entebbe and public transport licences.`}
+  crumbs={[{ href: '/production/', label: 'Production' }, { href: '/production/transport/', label: 'Transport' }]}
+  kicker="Transport · Uganda Railways, Civil Aviation Authority and Transport Licensing Board via UBOS"
+  lead={`${facts[0]} ${facts[1]}`}
+  tiles={tiles}
+  facts={facts}
+  notes={T.notes}
+  sources={Object.values(T.sources)}
+>
+  <section class="grid gap-4 lg:grid-cols-2">
+    <Chart
+      id="rail"
+      title="Freight on the railway"
+      subtitle="Tonnes carried by Uganda Railways, including lake rail ferries"
+      height={340}
+      source={T.sources.railway}
+      spec={{ kind: 'line', unit: ' t', digits: 0, x: T.railway.years, yMin: 0, series: [
+        { name: 'All rail freight', data: T.railway.tonnes, color: 1, points: true },
+        { name: 'Ferry via Port Bell', data: T.railway.port_bell, color: 2, points: true },
+        { name: 'Ferry via Jinja Pier', data: T.railway.jinja_pier, color: 3, points: true },
+      ] }}
+    />
+    <Chart
+      id="air"
+      share="uganda-air-cargo"
+      title="More cargo flies out than in"
+      subtitle="Cargo through Entebbe International Airport, tonnes"
+      height={340}
+      source={T.sources.air_cargo}
+      spec={{ kind: 'bar', stacked: true, unit: ' t', digits: 0, categories: T.air.years, series: [
+        { name: 'Flown out (loaded)', data: T.air.loaded, color: 1 },
+        { name: 'Flown in (off-loaded)', data: T.air.offloaded, color: 2 },
+      ], labelWidth: 50 }}
+    />
+  </section>
+
+  <section class="mt-12">
+    <Chart
+      id="licences"
+      title="Public transport licences issued"
+      subtitle="Licences issued each year by the Transport Licensing Board (not vehicles on the road)"
+      height={360}
+      source={T.sources.licences}
+      spec={{ kind: 'line', unit: '', digits: 0, x: T.licenceYears, yMin: 0, series: T.licences.map((l, i) => ({ name: l.name, data: l.data, color: i + 1, points: true })) }}
+    />
+  </section>
+
+  <p class="mt-6 text-sm text-ink-3">
+    More on roads, vehicles and passengers: <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/production/transport/getting-around/">Getting around Uganda</a>
+  </p>
+</StoryPage>
