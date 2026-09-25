@@ -248,23 +248,38 @@ const gallery = sharedCharts.filter((c) => !c.slug.endsWith('-by-district')).sli
     </section>
 
     <section class="mt-14" aria-labelledby="stories">
-      <h2 id="stories" class="text-2xl font-semibold tracking-tight">Explore the stories</h2>
-      <div class="mt-5 space-y-8">
-        {storySections.map(({ section, stories }) => (
-          <div>
-            <a href={`/${section.slug}/`} class="text-sm font-medium uppercase tracking-wide text-ink-3 hover:text-ink">{section.name}</a>
-            <ul class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {stories.map((st) => (
-                <li>
-                  <a href={st.href} class="card group block h-full p-4 transition hover:-translate-y-0.5 hover:shadow-lg">
-                    <span class="text-xs text-ink-3">{st.topic}</span>
-                    <span class="mt-0.5 block font-semibold group-hover:underline">{st.title}</span>
-                    <span class="mt-1 block text-sm text-ink-2">{st.blurb}</span>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+      <div class="flex items-baseline justify-between gap-3">
+        <h2 id="stories" class="text-2xl font-semibold tracking-tight">Explore the stories</h2>
+        <span class="text-sm text-ink-3">{storySections.reduce((n, s) => n + s.stories.length, 0)} stories in {storySections.length} sections</span>
+      </div>
+      <div class="mt-4 space-y-3">
+        {storySections.map(({ section, stories }, k) => (
+          <details class="story-group card" open={k === 0}>
+            <summary class="flex cursor-pointer list-none items-center gap-4 px-5 py-4">
+              <span class="min-w-0 flex-1">
+                <span class="flex items-baseline gap-3">
+                  <span class="text-lg font-semibold">{section.name}</span>
+                  <span class="text-sm text-ink-3">{stories.length} {stories.length === 1 ? 'story' : 'stories'}</span>
+                </span>
+                <span class="preview mt-0.5 hidden truncate text-sm text-ink-2 sm:block">{stories.slice(0, 3).map((st) => st.title).join(' · ')}</span>
+              </span>
+              <svg class="chev shrink-0 text-ink-3" viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 5 5-5" /></svg>
+            </summary>
+            <div class="border-t border-line px-5 pb-5 pt-4">
+              <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {stories.map((st) => (
+                  <li>
+                    <a href={st.href} class="story group block h-full rounded-xl p-4 transition">
+                      <span class="text-xs text-ink-3">{st.topic}</span>
+                      <span class="mt-0.5 block font-semibold group-hover:underline">{st.title}</span>
+                      <span class="mt-1 block text-sm text-ink-2">{st.blurb}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <a href={`/${section.slug}/`} class="mt-4 inline-block text-sm text-ink-2 hover:text-ink">Everything in {section.name} →</a>
+            </div>
+          </details>
         ))}
       </div>
     </section>
@@ -377,6 +392,14 @@ const gallery = sharedCharts.filter((c) => !c.slug.endsWith('-by-district')).sli
   .chip:hover {
     background: var(--grid);
   }
+  .story-group > summary::-webkit-details-marker { display: none; }
+  .story-group > summary:hover { background: var(--surface-2); border-radius: inherit; }
+  .story-group[open] > summary .preview { display: none; }
+  .story-group[open] .chev { transform: rotate(180deg); }
+  .chev { transition: transform 0.2s ease; }
+  .story { background: var(--surface-2); }
+  .story:hover { background: var(--grid); }
+  @media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
   .pick {
     padding: 3px 10px;
     border-radius: 999px;
