@@ -1,0 +1,247 @@
+---
+import Base from '../../layouts/Base.astro';
+import { safeJson } from '../../lib/json';
+import { source } from '../../lib/census';
+import { sources as popSources } from '../../lib/population';
+import { fit } from '../../lib/play';
+
+const thisYear = new Date().getFullYear();
+const districtsSorted = [...fit.districts].sort((a, b) => a.name.localeCompare(b.name));
+---
+
+<Base
+  title="Where do you fit in Uganda?"
+  description="Enter your birth year and district to see where you fit: how many Ugandans are younger than you, how much the country has grown since you were born, and how your district compares."
+>
+  <div class="mx-auto max-w-4xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb"><a class="hover:text-ink" href="/play/">Play & learn</a></nav>
+
+    <header class="pb-6 pt-4">
+      <h1 class="text-4xl font-semibold tracking-tight sm:text-5xl">Where do you fit in Uganda?</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">
+        Tell us your birth year and district, and we’ll show you your place in the numbers.
+        Nothing you enter leaves your phone or computer.
+      </p>
+    </header>
+
+    <form id="form" class="card grid gap-4 p-5 sm:grid-cols-3">
+      <label class="flex flex-col gap-1 text-sm text-ink-2">
+        Year you were born
+        <input id="born" type="number" inputmode="numeric" min="1925" max={thisYear} placeholder="e.g. 1998" required class="rounded-lg border border-line bg-page px-3 py-2 text-base text-ink" />
+      </label>
+      <label class="flex flex-col gap-1 text-sm text-ink-2">
+        Your district or city
+        <select id="district" required class="rounded-lg border border-line bg-page px-3 py-2 text-base text-ink">
+          <option value="">Choose…</option>
+          {districtsSorted.map((d) => <option value={d.code}>{d.name}</option>)}
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-sm text-ink-2">
+        People in your household <span class="text-xs text-ink-3">(optional)</span>
+        <input id="hh" type="number" inputmode="numeric" min="1" max="40" placeholder="e.g. 5" class="rounded-lg border border-line bg-page px-3 py-2 text-base text-ink" />
+      </label>
+      <div class="sm:col-span-3">
+        <button type="submit" class="rounded-lg bg-ink px-4 py-2 font-semibold text-surface hover:opacity-90">Show me where I fit</button>
+        <span id="form-error" class="ml-3 text-sm text-up-bad" aria-live="polite"></span>
+      </div>
+    </form>
+
+    <section id="results" class="mt-8 hidden" aria-live="polite">
+      <h2 class="text-2xl font-semibold tracking-tight" id="results-title"></h2>
+      <div id="cards" class="mt-4 grid gap-4 md:grid-cols-2"></div>
+      <div class="mt-6 flex flex-wrap items-center gap-3">
+        <button type="button" id="share" class="rounded-lg bg-ink px-4 py-2 font-semibold text-surface hover:opacity-90">Share</button>
+        <a id="district-page" class="text-sm text-ink underline decoration-dotted underline-offset-2" href="/places/districts/">See your district’s full profile →</a>
+        <span id="share-status" class="text-sm text-ink-3" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="card mt-10 p-5 text-sm text-ink-2">
+      <h2 class="text-base font-semibold text-ink">How we work this out</h2>
+      <ul class="mt-2 list-disc space-y-1 pl-5">
+        <li>Your age rank uses UBOS’s population projection for {fit.year}, by five-year age group (spread evenly within each group).</li>
+        <li>Uganda’s population in your birth year is estimated between census counts (1911–2024), assuming steady growth between them.</li>
+        <li>Life expectancy at your birth is interpolated between the census years UBOS reports (1969–2024).</li>
+        <li>District figures are from the 2024 census.</li>
+      </ul>
+      <p class="mt-2 text-xs text-ink-3">
+        Sources: <a class="underline decoration-dotted underline-offset-2" href={source.url} rel="noopener">UBOS, {source.title}</a>;
+        <a class="underline decoration-dotted underline-offset-2" href={popSources.projections.url} rel="noopener">UBOS, {popSources.projections.title}</a>.
+      </p>
+    </section>
+  </div>
+</Base>
+
+<script type="application/json" id="fit-data" set:html={safeJson(fit)} />
+
+<script>
+  type Dist = { code: string; name: string; slug: string; subregion: string; v: Record<string, number | null> };
+  const F = JSON.parse(document.getElementById('fit-data')!.textContent!) as {
+    year: number; census: { year: number; total: number }; bands: string[]; bandTotals: number[];
+    popByYear: [number, number][]; life: { year: number; total: number }[]; medianAge: number;
+    national: Record<string, number | null>; districts: Dist[]; ranks: Record<string, Record<string, number>>; districtCount: number;
+  };
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+  const fmtM = (n: number) => `${(n / 1e6).toFixed(1)} million`;
+  const pct = (v: number | null | undefined) => (v == null ? '–' : `${v.toFixed(0)}%`);
+  const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
+
+  /** Share of people younger than `age`, spreading each 5-year band evenly. */
+  function shareYounger(age: number) {
+    const total = F.bandTotals.reduce((a, b) => a + b, 0);
+    let under = 0;
+    F.bands.forEach((b, i) => {
+      const lo = i * 5;
+      const hi = b.endsWith('+') ? lo + 20 : lo + 5; // open-ended 80+: spread over 20 years
+      if (age >= hi) under += F.bandTotals[i];
+      else if (age > lo) under += F.bandTotals[i] * ((age - lo) / (hi - lo));
+    });
+    return (100 * under) / total;
+  }
+
+  /** Population in a year: geometric interpolation between known years. */
+  function popIn(year: number) {
+    const pts = F.popByYear;
+    if (year <= pts[0][0]) return pts[0][1];
+    for (let i = 1; i < pts.length; i++) {
+      const [y0, p0] = pts[i - 1];
+      const [y1, p1] = pts[i];
+      if (year <= y1) return p0 * Math.pow(p1 / p0, (year - y0) / (y1 - y0));
+    }
+    return pts[pts.length - 1][1];
+  }
+
+  /** Life expectancy at birth in a year, interpolated between census years (clamped at the ends). */
+  function lifeIn(year: number) {
+    const L = F.life;
+    if (year <= L[0].year) return { value: L[0].total, approx: year < L[0].year };
+    for (let i = 1; i < L.length; i++) {
+      if (year <= L[i].year) {
+        const t = (year - L[i - 1].year) / (L[i].year - L[i - 1].year);
+        return { value: L[i - 1].total + t * (L[i].total - L[i - 1].total), approx: false };
+      }
+    }
+    return { value: L[L.length - 1].total, approx: false };
+  }
+
+  function card(title: string, big: string, text: string) {
+    const el = document.createElement('article');
+    el.className = 'card p-5';
+    const t = document.createElement('p');
+    t.className = 'text-sm text-ink-3';
+    t.textContent = title;
+    const b = document.createElement('p');
+    b.className = 'mt-1 text-3xl font-semibold tracking-tight';
+    b.textContent = big;
+    const p = document.createElement('p');
+    p.className = 'mt-2 text-ink-2';
+    p.textContent = text;
+    el.append(t, b, p);
+    return el;
+  }
+
+  let shareText = '';
+
+  $('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const born = Number($<HTMLInputElement>('born').value);
+    const code = $<HTMLSelectElement>('district').value;
+    const hh = Number($<HTMLInputElement>('hh').value) || null;
+    const err = $('form-error');
+    if (!born || born < 1925 || born > F.year) { err.textContent = `Please enter a birth year between 1925 and ${F.year}.`; return; }
+    const d = F.districts.find((x) => x.code === code);
+    if (!d) { err.textContent = 'Please choose your district or city.'; return; }
+    err.textContent = '';
+
+    const age = F.year - born;
+    const cards: HTMLElement[] = [];
+
+    // 1. Age rank
+    const younger = shareYounger(age + 0.5);
+    cards.push(card('Your age', `${Math.round(younger)}% of Ugandans are younger than you`,
+      age < F.medianAge
+        ? `You’re about ${age} this year. Half of all Ugandans are younger than ${F.medianAge.toFixed(0)}, so you’re in the younger half.`
+        : `You’re about ${age} this year. Half of all Ugandans are younger than ${F.medianAge.toFixed(0)}, so you’re older than most of the country.`));
+
+    // 2. Population then and now
+    const then = popIn(born);
+    const ratio = F.census.total / then;
+    cards.push(born >= F.census.year
+      ? card('Uganda around you', fmtM(F.census.total), `The ${F.census.year} census counted ${fmtM(F.census.total)} people, and about half of them are children, like you.`)
+      : card('Uganda has grown with you', `${fmtM(then)} → ${fmtM(F.census.total)}`,
+        `When you were born in ${born}, Uganda had about ${fmtM(then)} people. The ${F.census.year} census counted ${fmtM(F.census.total)}: ${ratio >= 1.95 ? `${ratio.toFixed(1)} times as many` : `${Math.round((ratio - 1) * 100)}% more`}.`));
+
+    // 3. Life expectancy
+    const le = lifeIn(born);
+    const leNow = F.life[F.life.length - 1];
+    const firstLe = F.life[0];
+    cards.push(card('Life expectancy', `${le.value.toFixed(0)} → ${leNow.total.toFixed(0)} years`,
+      le.approx
+        ? `UBOS’s figures start in ${firstLe.year}, when a newborn in Uganda could expect to live about ${firstLe.total.toFixed(0)} years. A baby born around ${leNow.year} can expect ${leNow.total.toFixed(0)}.`
+        : `In ${born}, a newborn in Uganda could expect to live about ${le.value.toFixed(0)} years. A baby born around ${leNow.year} can expect ${leNow.total.toFixed(0)}.`));
+
+    // 4. Your district's homes
+    const n = F.districtCount;
+    const g = d.v.grid;
+    const rg = F.ranks.grid?.[d.code];
+    cards.push(card(`Homes in ${d.name}`, `${pct(g)} on grid power`,
+      `${pct(g)} of homes in ${d.name} get electricity from the grid (Uganda: ${pct(F.national.grid)}), ${ordinal(rg)} of ${n}. ${pct(d.v.water)} have safe drinking water (Uganda: ${pct(F.national.water)}).`));
+
+    // 5. Age-specific card
+    if (age >= 6 && age <= 12) {
+      cards.push(card(`Children your age in ${d.name}`, `${pct(d.v.out_of_school)} out of school`,
+        `Of children aged 6–12 in ${d.name}, ${pct(d.v.out_of_school)} are not in school (Uganda: ${pct(F.national.out_of_school)}).`));
+    } else if (age >= 13 && age <= 17) {
+      cards.push(card(`Teenagers in ${d.name}`, `${pct(d.v.out_of_school_teen)} out of school`,
+        `Of 13–17-year-olds in ${d.name}, ${pct(d.v.out_of_school_teen)} are not in school (Uganda: ${pct(F.national.out_of_school_teen)}).`));
+    } else if (age >= 18 && age <= 30) {
+      cards.push(card(`Young people in ${d.name}`, `${pct(d.v.neet)} not in work or school`,
+        `Of people aged 18–30 in ${d.name}, ${pct(d.v.neet)} are not in work, school or training (Uganda: ${pct(F.national.neet)}).`));
+    } else if (age > 30 && age <= 64) {
+      cards.push(card(`Work in ${d.name}`, `${pct(d.v.unemployment)} unemployed`,
+        `${pct(d.v.unemployment)} of people aged 14–64 in ${d.name} who want work can’t find it (Uganda: ${pct(F.national.unemployment)}).`));
+    } else if (age >= 65) {
+      cards.push(card('Your generation', `${(100 - younger).toFixed(1)}%`,
+        `Only about ${(100 - younger).toFixed(1)}% of Ugandans are your age or older. You’ve seen the country grow ${ratio.toFixed(1)}-fold.`));
+    }
+
+    // 6. Household size
+    if (hh) {
+      const avg = d.v.hh_size ?? F.national.hh_size ?? 0;
+      const diff = hh - avg;
+      cards.push(card('Your household', `${hh} vs ${avg.toFixed(1)}`,
+        Math.abs(diff) < 0.5
+          ? `Your household is about the typical size for ${d.name} (${avg.toFixed(1)} people).`
+          : `Your household is ${diff > 0 ? 'bigger' : 'smaller'} than the typical one in ${d.name} (${avg.toFixed(1)} people; Uganda: ${(F.national.hh_size ?? 0).toFixed(1)}).`));
+    }
+
+    // 7. Internet
+    const net = d.v.internet;
+    cards.push(card(`Online in ${d.name}`, `${net == null ? '–' : Math.round(net)} in 100 people`,
+      `use the internet in ${d.name} (Uganda: ${F.national.internet == null ? '–' : Math.round(F.national.internet)} in 100). If you’re reading this, you’re one of them.`));
+
+    $('cards').replaceChildren(...cards);
+    $('results-title').textContent = `Born in ${born}, living in ${d.name}`;
+    $<HTMLAnchorElement>('district-page').href = `/places/districts/${d.slug}/`;
+    $<HTMLAnchorElement>('district-page').textContent = `See ${d.name}’s full profile →`;
+    $('results').classList.remove('hidden');
+    $('share-status').textContent = '';
+    shareText = born >= F.census.year
+      ? `${Math.round(younger)}% of Ugandans are younger than me. Where do you fit?`
+      : `${Math.round(younger)}% of Ugandans are younger than me, and Uganda has grown from ${fmtM(then)} to ${fmtM(F.census.total)} people since I was born. Where do you fit?`;
+    $('results').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  });
+
+  $('share').addEventListener('click', async () => {
+    const url = `${location.origin}/play/where-do-you-fit/`;
+    try {
+      if (navigator.share) await navigator.share({ title: 'Where do you fit in Uganda?', text: shareText, url });
+      else {
+        await navigator.clipboard.writeText(`${shareText} ${url}`);
+        $('share-status').textContent = 'Copied: paste it into WhatsApp or X.';
+      }
+    } catch {
+      $('share-status').textContent = `${shareText} ${url}`;
+    }
+  });
+</script>

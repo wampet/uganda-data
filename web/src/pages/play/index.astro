@@ -1,0 +1,41 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const games = [
+  {
+    href: '/quiz/',
+    title: 'The daily Uganda quiz',
+    blurb: 'Ten new questions every day: guess the number, pick the district, and see the chart behind every answer.',
+  },
+  {
+    href: '/play/uganda-in-100/',
+    title: 'If Uganda were 100 people',
+    blurb: 'All 46 million of us shrunk to 100: who is a child, who is online, who has power at home. For any district too.',
+  },
+  {
+    href: '/play/where-do-you-fit/',
+    title: 'Where do you fit?',
+    blurb: 'Enter your birth year and district: how many Ugandans are younger than you, and how the country has changed since you were born.',
+  },
+];
+---
+
+<Base title="Play & learn" description="Games and interactives built on Uganda’s official statistics: a daily quiz, Uganda as 100 people, and where you fit.">
+  <div class="mx-auto max-w-5xl px-4 sm:px-6">
+    <header class="pb-8 pt-10">
+      <h1 class="text-4xl font-semibold tracking-tight">Play & learn</h1>
+      <p class="mt-2 max-w-2xl text-lg text-ink-2">Fun ways to get to know Uganda, all built on the same official statistics as the charts.</p>
+    </header>
+    <ul class="grid gap-4 md:grid-cols-3">
+      {games.map((g) => (
+        <li>
+          <a href={g.href} class="card group flex h-full flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+            <span class="text-lg font-semibold group-hover:underline">{g.title}</span>
+            <span class="mt-2 text-ink-2">{g.blurb}</span>
+            <span class="mt-auto pt-4 text-sm font-medium text-brand-ink">Play →</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</Base>

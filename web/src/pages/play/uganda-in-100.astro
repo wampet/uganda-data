@@ -1,0 +1,170 @@
+---
+import Base from '../../layouts/Base.astro';
+import { safeJson } from '../../lib/json';
+import { source } from '../../lib/census';
+import { BASES, hundred, SCENES, sentence } from '../../lib/play';
+
+const uganda = hundred.areas[0];
+const scenes = SCENES.filter((s) => uganda.values[s.id] != null);
+const groups = (Object.keys(BASES) as (keyof typeof BASES)[])
+  .map((base) => ({ base, label: BASES[base], scenes: scenes.filter((s) => s.base === base) }))
+  .filter((g) => g.scenes.length);
+const n = (id: string) => Math.round(uganda.values[id] ?? 0);
+const payload = { areas: hundred.areas, scenes: scenes.map((s) => ({ id: s.id, text: s.text, one: s.one, zero: s.zero })) };
+---
+
+<Base
+  title="If Uganda were 100 people"
+  description={`If Uganda were 100 people, ${n('children')} would be children, ${n('internet')} would use the internet and ${n('insurance')} would have health insurance. See it for any district.`}
+>
+  <div class="mx-auto max-w-5xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb"><a class="hover:text-ink" href="/play/">Play & learn</a></nav>
+
+    <header class="pb-8 pt-4">
+      <p class="text-sm font-medium text-brand-ink">Census 2024</p>
+      <h1 class="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">If <span id="area-name">Uganda</span> were 100 people…</h1>
+      <p class="mt-3 max-w-2xl text-lg text-ink-2">
+        Millions are hard to picture. So we shrank everyone counted in the 2024 census down to 100. Each dot is one person,
+        one home, one child or one young person: every section says which.
+      </p>
+      <div class="card mt-5 flex flex-wrap items-center gap-3 p-3">
+        <label for="area" class="text-sm text-ink-2">Show me</label>
+        <select id="area" class="min-w-0 flex-1 rounded-lg border border-line bg-page px-3 py-2 sm:flex-none">
+          {hundred.areas.map((a) => <option value={a.code}>{a.name}</option>)}
+        </select>
+        <button type="button" id="share" class="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-surface hover:opacity-90">Share</button>
+        <span id="share-status" class="text-sm text-ink-3" aria-live="polite"></span>
+      </div>
+    </header>
+
+    {groups.map((g) => (
+      <section class="mb-12">
+        <h2 class="text-2xl font-semibold tracking-tight">Of every <span class="text-brand-ink">{g.label}</span> in <span data-area-name>Uganda</span>…</h2>
+        <div class="mt-5 grid gap-4 md:grid-cols-2">
+          {g.scenes.map((s) => (
+            <article class="scene card p-5" data-scene={s.id}>
+              <p class="text-xl font-semibold leading-snug sm:text-2xl" data-sentence>{sentence(s, n(s.id))}</p>
+              <div class="dots mt-4" role="img" data-dots aria-label={`${n(s.id)} out of 100`}>
+                {Array.from({ length: 100 }, (_, i) => <i class:list={[i < n(s.id) && 'on']} />)}
+              </div>
+              <p class="mt-3 text-xs text-ink-3" data-exact>Exactly {uganda.values[s.id]?.toFixed(1)}% · {hundred.labels[s.id]}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+    ))}
+
+    <section class="card mb-10 p-5 text-ink-2">
+      <h2 class="text-lg font-semibold text-ink">How this works</h2>
+      <p class="mt-2">
+        Each number is a percentage from the 2024 census, rounded to a whole “out of 100”, so a few may be off by one.
+        Home figures (power, water, toilets…) are shares of households, not of people. District figures come from the
+        same census via UBOS’s census portal. <a id="district-link" class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/places/districts/">Explore every district on the map →</a>
+      </p>
+      <p class="mt-2 text-sm text-ink-3">Source: <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={source.url} rel="noopener">UBOS, {source.title}</a></p>
+    </section>
+  </div>
+</Base>
+
+<script type="application/json" id="hundred-data" set:html={safeJson(payload)} />
+
+<script>
+  type Area = { code: string; name: string; slug: string; values: Record<string, number | null> };
+  type SceneT = { id: string; text: string; one?: string; zero?: string };
+  const data = JSON.parse(document.getElementById('hundred-data')!.textContent!) as { areas: Area[]; scenes: SceneT[] };
+  const byCode = new Map(data.areas.map((a) => [a.code, a]));
+  const bySlug = new Map(data.areas.filter((a) => a.slug).map((a) => [a.slug, a]));
+  const sentence = (s: SceneT, n: number) => (n === 0 && s.zero) || (n === 1 && s.one) || s.text.replace('{n}', String(n));
+  const select = document.getElementById('area') as HTMLSelectElement;
+  let current = data.areas[0];
+
+  function show(area: Area, push = true) {
+    current = area;
+    document.getElementById('area-name')!.textContent = area.name;
+    document.querySelectorAll('[data-area-name]').forEach((el) => (el.textContent = area.name));
+    for (const s of data.scenes) {
+      const card = document.querySelector<HTMLElement>(`[data-scene="${s.id}"]`);
+      if (!card) continue;
+      const v = area.values[s.id];
+      card.hidden = v == null;
+      if (v == null) continue;
+      const n = Math.round(v);
+      card.querySelector('[data-sentence]')!.textContent = sentence(s, n);
+      card.querySelector('[data-exact]')!.textContent = `Exactly ${v.toFixed(1)}%`;
+      const dots = card.querySelector<HTMLElement>('[data-dots]')!;
+      dots.setAttribute('aria-label', `${n} out of 100`);
+      dots.querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i < n));
+    }
+    const link = document.getElementById('district-link') as HTMLAnchorElement;
+    link.href = area.slug ? `/places/districts/${area.slug}/` : '/places/districts/';
+    link.textContent = area.slug ? `See ${area.name}’s full profile →` : 'Explore every district on the map →';
+    select.value = area.code;
+    if (push) {
+      const url = new URL(location.href);
+      if (area.slug) url.searchParams.set('area', area.slug);
+      else url.searchParams.delete('area');
+      history.replaceState(null, '', url);
+    }
+    document.getElementById('share-status')!.textContent = '';
+  }
+
+  select.addEventListener('change', () => show(byCode.get(select.value)!));
+  const fromUrl = bySlug.get(new URL(location.href).searchParams.get('area') ?? '');
+  if (fromUrl) show(fromUrl, false);
+
+  document.getElementById('share')!.addEventListener('click', async () => {
+    const v = (id: string) => Math.round(current.values[id] ?? 0);
+    const text = `If ${current.name} were 100 people: ${v('children')} would be children, ${v('internet')} would use the internet, and only ${v('insurance')} would have health insurance. Of 100 homes, ${v('grid')} have grid power.`;
+    const url = location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: `If ${current.name} were 100 people`, text, url });
+      else {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        document.getElementById('share-status')!.textContent = 'Copied: paste it into WhatsApp or X.';
+      }
+    } catch {
+      document.getElementById('share-status')!.textContent = `${text} ${url}`;
+    }
+  });
+
+  // Fill the dots in as each scene scrolls into view (skipped for reduced motion).
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+    document.querySelectorAll('.scene').forEach((c) => c.classList.add('waiting'));
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) if (e.isIntersecting) { e.target.classList.remove('waiting'); io.unobserve(e.target); }
+    }, { rootMargin: '-10% 0px' });
+    document.querySelectorAll('.scene').forEach((c) => io.observe(c));
+  }
+</script>
+
+<style>
+  .dots {
+    display: grid;
+    grid-template-columns: repeat(20, minmax(0, 1fr));
+    gap: 4px;
+    max-width: 440px;
+  }
+  @media (max-width: 480px) {
+    .dots { grid-template-columns: repeat(10, minmax(0, 1fr)); max-width: 260px; }
+  }
+  .dots i {
+    display: block;
+    aspect-ratio: 1;
+    border-radius: 999px;
+    background: var(--muted-series);
+    transition: background 0.3s ease, transform 0.3s ease;
+  }
+  .dots i.on { background: var(--series-1); }
+  /* Before a scene scrolls in, every dot is neutral; highlighted ones fill in, staggered. */
+  :global(.scene.waiting) .dots i.on { background: var(--muted-series); transform: scale(0.6); }
+  .dots i:nth-child(10n + 1) { transition-delay: 0ms; }
+  .dots i:nth-child(10n + 2) { transition-delay: 20ms; }
+  .dots i:nth-child(10n + 3) { transition-delay: 40ms; }
+  .dots i:nth-child(10n + 4) { transition-delay: 60ms; }
+  .dots i:nth-child(10n + 5) { transition-delay: 80ms; }
+  .dots i:nth-child(10n + 6) { transition-delay: 100ms; }
+  .dots i:nth-child(10n + 7) { transition-delay: 120ms; }
+  .dots i:nth-child(10n + 8) { transition-delay: 140ms; }
+  .dots i:nth-child(10n + 9) { transition-delay: 160ms; }
+  .dots i:nth-child(10n) { transition-delay: 180ms; }
+</style>
