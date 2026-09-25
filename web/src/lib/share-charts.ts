@@ -22,6 +22,7 @@ import * as WB from './wellbeing';
 import * as MN from './mining';
 import * as TV from './travel';
 import * as DS from './disability';
+import * as IX from './indices';
 
 export interface SharedChart {
   slug: string;
@@ -603,6 +604,56 @@ export const sharedCharts: SharedChart[] = [
     page: { href: '/environment/land/forests-land-and-climate/', label: 'More on land and climate' },
     topic: 'Environment',
   },
+  (() => {
+    const h = IX.housePrices();
+    const q = IX.rppi.quarters;
+    return {
+      slug: 'kampala-house-prices',
+      title: 'House prices in greater Kampala',
+      subtitle: `House price index by area, ${IX.rppi.base}`,
+      description: h.facts.join(' '),
+      spec: { kind: 'line', digits: 1, x: q, series: [
+        { name: 'Greater Kampala', data: IX.rppi.index[IX.RPPI_HEADLINE], color: 1 },
+        ...IX.rppiAreas.map((a, i) => ({ name: a, data: IX.rppi.index[a], color: i + 2 })),
+      ] },
+      height: 400,
+      source: src(IX.rppi.source),
+      page: { href: '/economy/prices/house-prices/', label: 'More on house prices' },
+      topic: 'Economy',
+    } satisfies SharedChart;
+  })(),
+  (() => {
+    const b = IX.buildingCosts();
+    return {
+      slug: 'uganda-building-material-prices',
+      title: 'Which building materials got dearer?',
+      subtitle: `Price change since 2016/17, to ${monthLabel(b.latest)}`,
+      description: b.facts.join(' '),
+      spec: { kind: 'bar', unit: '%', digits: 0, labelWidth: 170, categories: b.byMaterial.map((x) => x.name), series: [{ name: 'Change since 2016/17', data: b.byMaterial.map((x) => Math.round(x.since * 10) / 10) }] },
+      height: 460,
+      source: src(IX.cipi.source),
+      page: { href: '/economy/prices/construction-costs/', label: 'More on construction costs' },
+      topic: 'Economy',
+    } satisfies SharedChart;
+  })(),
+  (() => {
+    const p = IX.producerPrices();
+    const fs = IX.factoryVsShop();
+    return {
+      slug: 'uganda-factory-vs-shop-prices',
+      title: 'Factory prices and shop prices',
+      subtitle: '% change on a year earlier: producer prices (PPI) vs consumer prices (CPI)',
+      description: p.facts[0],
+      spec: { kind: 'line', unit: '%', digits: 1, zeroLine: true, x: fs.months, series: [
+        { name: 'Factory prices (PPI)', data: fs.ppi, color: 1 },
+        { name: 'Shop prices (CPI)', data: fs.cpi, color: 2 },
+      ] },
+      height: 400,
+      source: src(IX.ppi.source),
+      page: { href: '/economy/prices/producer-prices/', label: 'More on factory prices' },
+      topic: 'Economy',
+    } satisfies SharedChart;
+  })(),
   districtMap('grid', 'grid-electricity-by-district', 'Who has power from the grid?', 'Share of households using grid electricity for lighting.'),
   districtMap('out_of_school', 'children-out-of-school-by-district', 'Children out of school, by district', 'Share of children aged 6–12 not in school.'),
   districtMap('neet', 'youth-not-in-work-or-school-by-district', 'Young people not in work, school or training', 'Share of 18–30 year olds not in employment, education or training.'),

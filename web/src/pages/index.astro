@@ -2,6 +2,9 @@
 import { safeJson } from '../lib/json';
 import Base from '../layouts/Base.astro';
 import DistrictSearch from '../components/DistrictSearch.astro';
+import Chart from '../components/Chart.astro';
+import Sparkline from '../components/Sparkline.astro';
+import * as D from '../lib/census';
 import { catalog, entriesFor, featured, fmtDate, fmtPct, monthLabel, sections, topicUrl } from '../lib/data';
 import * as C from '../lib/cpi';
 import * as G from '../lib/gdp';
@@ -31,16 +34,23 @@ const latest = catalog.filter((c) => c.kind === 'dataset').slice(0, 6);
 const last = <T,>(a: T[]) => a[a.length - 1];
 
 // Key numbers: one headline figure per story, each computed from its data.
-const keyNumbers = [
-  { value: fmtPct(C.headline), label: 'Inflation', note: monthLabel(C.latestMonth, true), href: '/economy/prices/inflation/' },
-  { value: `${G.latest.growth}%`, label: 'Economic growth', note: G.latest.year, href: '/economy/gdp/economic-growth/' },
-  { value: P.millions(P.census2024.total), label: 'People', note: 'Census 2024', href: '/people/population/age-and-growth/' },
-  { value: `${V.latestRate}%`, label: 'Living in poverty', note: V.latestYear, href: '/people/poverty/poverty-in-uganda/' },
+const keyNumbers: { value: string; label: string; note: string; href: string; trend?: { values: (number | null)[]; label: string } }[] = [
+  { value: fmtPct(C.headline), label: 'Inflation', note: monthLabel(C.latestMonth, true), href: '/economy/prices/inflation/',
+    trend: { values: C.yoyOf('headline').slice(-36), label: 'Inflation over the last three years' } },
+  { value: `${G.latest.growth}%`, label: 'Economic growth', note: G.latest.year, href: '/economy/gdp/economic-growth/',
+    trend: { values: G.annual.growth, label: `GDP growth each year, ${G.annual.years[0]} to ${G.latest.year}` } },
+  { value: P.millions(P.census2024.total), label: 'People', note: 'Census 2024', href: '/people/population/age-and-growth/',
+    trend: { values: P.history.map((h) => h.total), label: `Population at each census, ${P.history[0].year} to 2024` } },
+  { value: `${V.latestRate}%`, label: 'Living in poverty', note: V.latestYear, href: '/people/poverty/poverty-in-uganda/',
+    trend: { values: V.national.rate, label: `Poverty rate, ${V.firstYear} to ${V.latestYear}` } },
   { value: `${Math.round(J.censusNeet ?? 0)}%`, label: 'Youth not in work, school or training', note: 'Census 2024', href: '/people/jobs/work-and-earnings/' },
   { value: `${Math.round(E.outOfSchool.primary ?? 0)}%`, label: 'Children 6–12 out of school', note: 'Census 2024', href: '/people/education/learning-in-uganda/' },
-  { value: `${Math.round(R.perDay)} a day`, label: 'Killed on the roads', note: String(R.year), href: '/people/crime/road-safety/' },
-  { value: `${last(H.under5).value}`, label: 'Child deaths per 1,000 births', note: `before age 5, ${last(H.under5).survey}`, href: '/people/health/health-in-uganda/' },
-  { value: T.bn(T.latest.exports), label: 'Exports of goods', note: String(T.year), href: '/economy/trade/exports-and-imports/' },
+  { value: `${Math.round(R.perDay)} a day`, label: 'Killed on the roads', note: String(R.year), href: '/people/crime/road-safety/',
+    trend: { values: R.casualties.killed, label: `Road deaths each year, ${R.years[0]} to ${R.year}` } },
+  { value: `${last(H.under5).value}`, label: 'Child deaths per 1,000 births', note: `before age 5, ${last(H.under5).survey}`, href: '/people/health/health-in-uganda/',
+    trend: { values: H.under5.map((u) => u.value), label: `Under-5 deaths per 1,000 births, ${H.under5[0].survey} to ${last(H.under5).survey}` } },
+  { value: T.bn(T.latest.exports), label: 'Exports of goods', note: String(T.year), href: '/economy/trade/exports-and-imports/',
+    trend: { values: T.annual.exports, label: `Exports each year, ${T.annual.years[0]} to ${T.year}` } },
   { value: GF.trillion(GF.spending), label: 'Government spending', note: GF.year, href: '/economy/government-finance/where-the-money-goes/' },
 ];
 
@@ -66,6 +76,29 @@ const storySections = sections
       .filter((f, i, all) => all.findIndex((x) => x.href === f.href) === i && !f.href.startsWith('/places/districts/?')),
   }))
   .filter((s) => s.stories.length > 0);
+
+// Chart of the week: the shareable chart whose UBOS data was updated most recently.
+const updatedByUrl = new Map(catalog.map((c) => [c.url, c.updated]));
+const weekly = sharedCharts
+  .map((c) => ({ c, updated: updatedByUrl.get(c.source.url) ?? null }))
+  .filter((x): x is { c: (typeof sharedCharts)[number]; updated: string } => x.updated != null)
+  .sort((a, b) => b.updated.localeCompare(a.updated))[0];
+
+// Mini district map: the questions people ask first.
+const MAP_IDS = ['grid', 'out_of_school', 'water', 'cattle_per_100'].filter((id) => D.indicatorById.has(id));
+const mapPayload = MAP_IDS.map((id) => {
+  const ind = D.indicatorById.get(id)!;
+  return { id, label: ind.label, suffix: D.unitSuffix(ind), digits: D.digitsFor(ind), values: D.mapValues(id), breaks: D.breaksFor(id), national: D.national[id], source: D.sourceFor(id) };
+});
+const map0 = mapPayload[0];
+
+// Then and now: first and latest value of long-running series.
+const thenNow = [
+  { label: 'Ugandans living in poverty', unit: '%', then: { when: V.firstYear, v: V.firstRate }, now: { when: V.latestYear, v: V.latestRate }, href: '/people/poverty/poverty-in-uganda/' },
+  { label: 'Children dying before age 5, per 1,000 births', unit: '', then: { when: H.under5[0].survey, v: H.under5[0].value }, now: { when: last(H.under5).survey, v: last(H.under5).value }, href: '/people/health/health-in-uganda/' },
+  { label: 'Life expectancy at birth, years', unit: '', then: { when: String(P.life[0].year), v: P.life[0].total }, now: { when: String(last(P.life).year), v: last(P.life).total }, href: '/people/population/age-and-growth/' },
+  { label: 'People, millions', unit: '', then: { when: String(P.history[0].year), v: +(P.history[0].total / 1e6).toFixed(1) }, now: { when: String(last(P.history).year), v: +(last(P.history).total / 1e6).toFixed(1) }, href: '/people/population/age-and-growth/' },
+].map((t) => ({ ...t, max: Math.max(t.then.v, t.now.v) }));
 
 const gallery = sharedCharts.filter((c) => !c.slug.endsWith('-by-district')).slice(0, 6);
 
@@ -110,7 +143,65 @@ const gallery = sharedCharts.filter((c) => !c.slug.endsWith('-by-district')).sli
             <a href={k.href} class="card group flex h-full flex-col p-4 transition hover:-translate-y-0.5 hover:shadow-lg">
               <span class="text-2xl font-semibold tracking-tight">{k.value}</span>
               <span class="mt-1 text-sm text-ink group-hover:underline">{k.label}</span>
+              {k.trend && <Sparkline values={k.trend.values} label={k.trend.label} class="mt-2 w-full" />}
               <span class="mt-auto pt-2 text-xs text-ink-3">{k.note}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+
+    <section class="mt-14 grid gap-6 lg:grid-cols-[1.4fr_1fr]" aria-label="Chart of the week and district map">
+      {weekly && (
+        <div>
+          <div class="mb-2 flex items-baseline justify-between gap-3">
+            <h2 class="text-2xl font-semibold tracking-tight">Chart of the week</h2>
+            <span class="text-sm text-ink-3">New from UBOS, {fmtDate(weekly.updated)}</span>
+          </div>
+          <Chart id="weekly" title={weekly.c.title} subtitle={weekly.c.subtitle} spec={weekly.c.spec} height={380} source={weekly.c.source} share={weekly.c.slug} />
+          <p class="mt-2 text-sm text-ink-2">{weekly.c.description} <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={weekly.c.page.href}>{weekly.c.page.label} →</a></p>
+        </div>
+      )}
+      <div>
+        <div class="mb-2 flex items-baseline justify-between gap-3">
+          <h2 class="text-2xl font-semibold tracking-tight">Your district</h2>
+          <a href="/places/districts/" class="text-sm text-ink-2 hover:text-ink">Full map →</a>
+        </div>
+        <div class="mb-2 flex flex-wrap gap-1.5" role="radiogroup" aria-label="What to show on the map">
+          {mapPayload.map((m, i) => (
+            <button type="button" role="radio" class="pick" data-map={m.id} aria-checked={i === 0 ? 'true' : 'false'}>{m.label}</button>
+          ))}
+        </div>
+        <Chart
+          id="home-map"
+          title={map0.label}
+          subtitle="Click a district for its profile"
+          height={420}
+          table={false}
+          source={map0.source}
+          spec={{
+            kind: 'map', unit: map0.suffix, digits: map0.digits, series: [],
+            map: { geo: '/geo/districts.json', values: map0.values, names: D.mapNames, slugs: D.mapSlugs, href: '/places/districts/', breaks: map0.breaks, reference: { label: 'Uganda', value: map0.national } },
+          }}
+        />
+        <script type="application/json" id="home-map-data" set:html={safeJson(mapPayload)} />
+      </div>
+    </section>
+
+    <section class="mt-14" aria-labelledby="then-now">
+      <h2 id="then-now" class="text-2xl font-semibold tracking-tight">Then and now</h2>
+      <ul class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {thenNow.map((t) => (
+          <li>
+            <a href={t.href} class="card group flex h-full flex-col p-4 transition hover:-translate-y-0.5 hover:shadow-lg">
+              <span class="text-sm text-ink group-hover:underline">{t.label}</span>
+              {[{ ...t.then, now: false }, { ...t.now, now: true }].map((r) => (
+                <span class="mt-3 block">
+                  <span class="flex items-baseline justify-between text-xs text-ink-3"><span>{r.when}</span><span class="tnum text-base font-semibold text-ink">{r.v}{t.unit}</span></span>
+                  <span class="mt-1 block h-2 rounded-full bg-surface-2"><span class={`bar block h-2 rounded-full${r.now ? ' now' : ''}`} style={`width:${Math.max(2, (100 * r.v) / t.max)}%`} /></span>
+                </span>
+              ))}
             </a>
           </li>
         ))}
@@ -199,6 +290,30 @@ const gallery = sharedCharts.filter((c) => !c.slug.endsWith('-by-district')).sli
 </Base>
 
 <script>
+  // Mini district map: switch questions without leaving the page.
+  const mapData = document.getElementById('home-map-data');
+  if (mapData) {
+    type M = { id: string; label: string; suffix: string; digits: number; values: Record<string, number | null>; breaks: number[]; national: number | null; source: { title: string; url: string } };
+    const inds = JSON.parse(mapData.textContent!) as M[];
+    const mapEl = document.getElementById('home-map')!;
+    document.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const m = inds.find((x) => x.id === b.dataset.map);
+        if (!m) return;
+        mapEl.dispatchEvent(new CustomEvent('chart:update', { detail: {
+          title: m.label, unit: m.suffix, digits: m.digits,
+          map: { values: m.values, breaks: m.breaks, reference: { label: 'Uganda', value: m.national } },
+        } }));
+        const a = mapEl.querySelector<HTMLAnchorElement>('footer a[rel="noopener"]');
+        if (a) {
+          a.href = m.source.url;
+          a.textContent = `UBOS, ${m.source.title}`;
+        }
+        document.querySelectorAll<HTMLButtonElement>('[data-map]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+      }),
+    );
+  }
+
   const facts: string[] = JSON.parse(document.getElementById('facts-data')!.textContent!);
   let i = 0;
   document.getElementById('fact-next')!.addEventListener('click', () => {
@@ -222,5 +337,28 @@ const gallery = sharedCharts.filter((c) => !c.slug.endsWith('-by-district')).sli
   }
   .chip:hover {
     background: var(--grid);
+  }
+  .pick {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    transition: background 0.15s, color 0.15s;
+  }
+  .pick:hover {
+    color: var(--ink);
+    background: var(--grid);
+  }
+  .pick[aria-checked='true'] {
+    background: var(--ink);
+    color: var(--surface);
+    font-weight: 600;
+  }
+  .bar {
+    background: var(--muted-series);
+  }
+  .bar.now {
+    background: var(--series-1);
   }
 </style>
