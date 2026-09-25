@@ -264,6 +264,9 @@ const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
             <li><a class="chip" href={`/places/districts/${x.slug}/`}>{x.name} <span class="text-ink-3">{Math.round((x.values.population ?? 0) / 1000).toLocaleString()}k</span></a></li>
           ))}
         </ul>
+        {near[0] && (
+          <p class="mt-4 text-sm"><a class="font-medium text-ink underline decoration-dotted underline-offset-2" href={`/places/districts/compare/?a=${d.slug}&b=${near[0].slug}`}>Compare {d.name} with {near[0].name} →</a></p>
+        )}
         <div class="mt-5"><DistrictSearch /></div>
       </div>
       <div class="card p-5 text-ink-2">

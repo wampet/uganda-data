@@ -113,12 +113,14 @@ export function createOptions(t: TokenLookup) {
     const big = spec.series.some((s) => s.data.some((v) => v != null && Math.abs(v) >= 1e5));
     // Numeric year axis: pick a round step from the span and snap both ends to it,
     // so every tick is evenly spaced (no stray labels at the data's first/last year).
+    // A reader-chosen window (timeline slider) narrows the span the step is picked from.
     const xNums = numeric ? x.map(Number) : [];
-    const span = numeric ? Math.max(...xNums) - Math.min(...xNums) : 0;
-    const step = span > 150 ? 50 : span > 60 ? 20 : span > 25 ? 10 : 5;
-    // A reader-chosen window (timeline slider) shows exactly those years.
-    const xMin = numeric ? (win ? xNums[win[0]] : Math.floor(Math.min(...xNums) / step) * step) : 0;
-    const xMax = numeric ? (win ? xNums[win[1]] : Math.ceil(Math.max(...xNums) / step) * step) : 0;
+    const lo = numeric ? (win ? xNums[win[0]] : Math.min(...xNums)) : 0;
+    const hi = numeric ? (win ? xNums[win[1]] : Math.max(...xNums)) : 0;
+    const span = hi - lo;
+    const step = span > 150 ? 50 : span > 60 ? 20 : span > 25 ? 10 : span > 10 ? 5 : span > 5 ? 2 : 1;
+    const xMin = numeric ? Math.floor(lo / step) * step : 0;
+    const xMax = numeric ? Math.ceil(hi / step) * step : 0;
 
     return {
       ...baseOption(),
@@ -145,8 +147,7 @@ export function createOptions(t: TokenLookup) {
             type: 'value',
             min: xMin,
             max: xMax,
-            interval: win ? undefined : step,
-            minInterval: 1,
+            interval: step,
             splitLine: { show: false },
             axisLine: { show: true, lineStyle: { color: t('--axis') } },
             axisTick: { show: false },

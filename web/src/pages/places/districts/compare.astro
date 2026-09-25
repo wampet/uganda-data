@@ -1,0 +1,143 @@
+---
+// Two districts side by side, on every census and farming indicator. Static:
+// one small payload, the choice lives in the URL (?a=gulu&b=lira) so a
+// comparison can be shared.
+import Base from '../../../layouts/Base.astro';
+import { safeJson } from '../../../lib/json';
+import { districts, fmtValue, mapIndicators, national, source, farmingSources } from '../../../lib/census';
+
+const DEFAULT_A = 'gulu';
+const DEFAULT_B = 'lira';
+const a0 = districts.find((d) => d.slug === DEFAULT_A) ?? districts[0];
+const b0 = districts.find((d) => d.slug === DEFAULT_B) ?? districts[1];
+
+const groups = [...new Set(mapIndicators.map((i) => i.group))];
+const payload = {
+  indicators: mapIndicators.map((i) => ({ id: i.id, label: i.label, group: i.group, better: i.better, unit: i.unit })),
+  national: Object.fromEntries(mapIndicators.map((i) => [i.id, fmtValue(i, national[i.id])])),
+  nationalRaw: Object.fromEntries(mapIndicators.map((i) => [i.id, national[i.id] ?? null])),
+  districts: Object.fromEntries(
+    districts.map((d) => [d.slug, {
+      name: d.name,
+      raw: Object.fromEntries(mapIndicators.map((i) => [i.id, d.values[i.id] ?? null])),
+      text: Object.fromEntries(mapIndicators.map((i) => [i.id, fmtValue(i, d.values[i.id])])),
+    }]),
+  ),
+};
+const sorted = [...districts].sort((x, y) => x.name.localeCompare(y.name));
+---
+
+<Base
+  title="Compare two districts"
+  description="Put any two of Uganda’s 146 districts and cities side by side: schooling, jobs, electricity, water, health and farming, from the 2024 census."
+>
+  <div class="mx-auto max-w-5xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/places/">Places</a><span class="px-1.5" aria-hidden="true">/</span><a class="hover:text-ink" href="/places/districts/">Districts</a>
+    </nav>
+    <header class="pb-6 pt-4">
+      <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">Compare two districts</h1>
+      <p class="mt-2 max-w-2xl text-lg text-ink-2">Pick any two districts or cities. The link updates, so you can share the comparison.</p>
+    </header>
+
+    <div class="card sticky top-2 z-10 grid grid-cols-2 gap-3 p-3">
+      {[['a', a0.slug, 'series-1'], ['b', b0.slug, 'series-2']].map(([k, slug, token]) => (
+        <label class="block text-sm text-ink-2">
+          <span class="mb-1 flex items-center gap-1.5"><span class="swatch" style={`background:var(--${token})`} />{k === 'a' ? 'First' : 'Second'}</span>
+          <select data-side={k} class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-base text-ink">
+            {sorted.map((d) => <option value={d.slug} selected={d.slug === slug}>{d.name}</option>)}
+          </select>
+        </label>
+      ))}
+    </div>
+
+    <div class="mt-6 space-y-8">
+      {groups.map((g) => (
+        <section>
+          <h2 class="text-sm font-medium uppercase tracking-wide text-ink-3">{g}</h2>
+          <ul class="card mt-2 divide-y divide-line">
+            {mapIndicators.filter((i) => i.group === g).map((i) => (
+              <li class="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[minmax(0,1.3fr)_1fr]" data-row={i.id}>
+                <span class="text-sm text-ink">{i.label}<span class="block text-xs text-ink-3">Uganda: {fmtValue(i, national[i.id])}</span></span>
+                <span class="grid gap-1 text-sm">
+                  {(['a', 'b'] as const).map((k) => (
+                    <span class="flex items-center gap-2">
+                      <span class="bar-track hidden flex-1 sm:block"><span class="bar-fill block h-2 rounded-full" data-bar={k} style={`background:var(--series-${k === 'a' ? 1 : 2});width:0`} /></span>
+                      <span class="tnum w-28 text-right font-semibold text-ink" data-val={k}>{fmtValue(i, (k === 'a' ? a0 : b0).values[i.id])}</span>
+                    </span>
+                  ))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+
+    <p class="mt-8 text-sm text-ink-3">
+      Sources: UBOS, <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={source.url} rel="noopener">{source.title}</a>
+      {farmingSources[0] && <>; <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={farmingSources[0].url} rel="noopener">National Livestock Census 2021</a></>}.
+      Bars compare the two districts with each other on each row. The livestock census counts cities inside their parent district, so cities show “–” for farming.
+    </p>
+  </div>
+</Base>
+
+<script type="application/json" id="compare-data" set:html={safeJson(payload)} />
+
+<script>
+  type Payload = {
+    indicators: { id: string; better: 'higher' | 'lower' | null }[];
+    districts: Record<string, { name: string; raw: Record<string, number | null>; text: Record<string, string> }>;
+  };
+  const data = JSON.parse(document.getElementById('compare-data')!.textContent!) as Payload;
+  const pick = (k: string) => document.querySelector<HTMLSelectElement>(`[data-side="${k}"]`)!;
+
+  function show() {
+    const a = data.districts[pick('a').value];
+    const b = data.districts[pick('b').value];
+    if (!a || !b) return;
+    for (const ind of data.indicators) {
+      const row = document.querySelector<HTMLElement>(`[data-row="${ind.id}"]`);
+      if (!row) continue;
+      const va = a.raw[ind.id], vb = b.raw[ind.id];
+      const max = Math.max(Math.abs(va ?? 0), Math.abs(vb ?? 0)) || 1;
+      for (const [k, d, v] of [['a', a, va], ['b', b, vb]] as const) {
+        row.querySelector<HTMLElement>(`[data-val="${k}"]`)!.textContent = d.text[ind.id];
+        row.querySelector<HTMLElement>(`[data-bar="${k}"]`)!.style.width = v == null ? '0' : `${Math.max(2, (100 * Math.abs(v)) / max)}%`;
+      }
+    }
+    document.title = `${a.name} vs ${b.name} · Uganda in Data`;
+    const url = new URL(location.href);
+    url.searchParams.set('a', pick('a').value);
+    url.searchParams.set('b', pick('b').value);
+    history.replaceState(null, '', url);
+  }
+
+  const params = new URL(location.href).searchParams;
+  for (const k of ['a', 'b']) {
+    const v = params.get(k);
+    if (v && data.districts[v]) pick(k).value = v;
+    pick(k).addEventListener('change', show);
+  }
+  show();
+</script>
+
+<style>
+  .swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+  }
+  .bar-track {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+  }
+  .bar-fill {
+    transition: width 0.25s ease;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bar-fill { transition: none; }
+  }
+</style>
