@@ -44,9 +44,10 @@ def fetch_districts() -> list[dict]:
     return out
 
 
-def fetch_profile(code: str) -> dict[str, dict]:
-    """Flatten a district profile into {table_name: {column: value}}."""
-    raw = _get(f"get_profile_data.php?level=1&location_code={code}&format=detailed")
+def fetch_profile(code: str, level: int = 1) -> dict[str, dict]:
+    """Flatten an area profile into {table_name: {column: value}}.
+    level: 1 district, 2 county, 3 sub-county, 4 parish (the census portal's levels)."""
+    raw = _get(f"get_profile_data.php?level={level}&location_code={code}&format=detailed")
     tables = {}
     for t in raw["data"].values():
         rec = t["records"][0] if t["records"] else {}
@@ -115,6 +116,31 @@ def _val(profile: dict, ref) -> float | None:
     return float(v) if isinstance(v, int | float) else None
 
 
+def indicator_values(counts_for, rate_for=None) -> dict[str, float | None]:
+    """All INDICATORS for one area. `counts_for(ref)` returns a count (or "area" -> km²);
+    `rate_for(pct_ref, count_col)` pools UBOS-published rates for aggregates."""
+    out = {}
+    for iid, _label, _q, _g, num, den, unit, _b in INDICATORS:
+        n = counts_for(num) if not (isinstance(den, tuple) and den[0] == "rate") else None
+        if den is None:
+            v = n
+        elif isinstance(den, tuple) and den[0] == "rate":
+            v = rate_for(num, den[1]) if rate_for else counts_for(num)
+        elif den == "area_km2":
+            a = counts_for("area")
+            v = n / a if n is not None and a else None
+        else:
+            d = counts_for(den)
+            v = (n / d if unit == "people" else 100 * n / d) if n is not None and d else None
+        out[iid] = None if v is None else round(v, 2 if unit == "people" and den else 1)
+    return out
+
+
+def profile_values(profile: dict, area_km2: float | None) -> dict[str, float | None]:
+    """Indicators for a single area (district, sub-county, ...) from its profile tables."""
+    return indicator_values(lambda ref: area_km2 if ref == "area" else _val(profile, ref))
+
+
 def build(districts: list[dict], profiles: dict[str, dict], areas: dict[str, float]) -> dict:
     # ---- source checks
     total = sum(_val(profiles[d["code"]], ("Population by Sex", "total")) or 0 for d in districts)
@@ -130,27 +156,10 @@ def build(districts: list[dict], profiles: dict[str, dict], areas: dict[str, flo
     if phone_table_broken:
         notes.append("UBOS's mobile phone ownership table currently repeats the internet-use figures, so phone ownership is left out.")
 
-    def indicator_values(counts_for, rate_for=None) -> dict[str, float | None]:
-        out = {}
-        for iid, _label, _q, _g, num, den, unit, _b in INDICATORS:
-            n = counts_for(num) if not (isinstance(den, tuple) and den[0] == "rate") else None
-            if den is None:
-                v = n
-            elif isinstance(den, tuple) and den[0] == "rate":
-                v = rate_for(num, den[1]) if rate_for else counts_for(num)
-            elif den == "area_km2":
-                a = counts_for("area")
-                v = n / a if n is not None and a else None
-            else:
-                d = counts_for(den)
-                v = (n / d if unit == "people" else 100 * n / d) if n is not None and d else None
-            out[iid] = None if v is None else round(v, 2 if unit == "people" and den else 1)
-        return out
-
     rows = []
     for d in districts:
         prof = profiles[d["code"]]
-        vals = indicator_values(lambda ref, p=prof, c=d["code"]: areas.get(c) if ref == "area" else _val(p, ref))
+        vals = profile_values(prof, areas.get(d["code"]))
         rows.append({**d, "area_km2": round(areas.get(d["code"], 0), 1), "values": vals})
 
     # Aggregates from summed counts (unemployment: population-weighted by 14-64).

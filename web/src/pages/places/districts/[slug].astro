@@ -6,6 +6,8 @@ import {
   districtHighlights, districts, farmingIndicators, farmingSources, fmtValue, groups, indicatorById, indicators, mapNames,
   mapSlugs, national, notes, rankOf, siblings, source, subregionByCode, type District,
 } from '../../../lib/census';
+import { subNotesFor, subPayload, subSource } from '../../../lib/subcounties';
+import { safeJson } from '../../../lib/json';
 
 export function getStaticPaths() {
   return districts.map((d) => ({ params: { slug: d.slug }, props: { d } }));
@@ -64,6 +66,13 @@ const farmParent = districts.find((x) => x.name === PARENT_OF[d.name]);
 const farming = farmingIndicators
   .map((i) => ({ i, v: d.values[i.id], s: sr.values[i.id], n: national[i.id], ...rankOf(i.id, d.code) }))
   .filter((r) => r.v != null);
+// Sub-counties (city divisions) inside this district, from the census portal.
+const SUB_DEFAULT = 'grid';
+const sub = subPayload(d.code, d.values);
+const subDef = sub.indicators.find((i) => i.id === SUB_DEFAULT)!;
+const subWord = isCity ? 'division' : 'sub-county';
+const subWords = isCity ? 'divisions' : 'sub-counties';
+const subNotes = subNotesFor(d.name);
 const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
 const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 ---
@@ -159,6 +168,57 @@ const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
       </div>
     </section>
 
+
+    {sub.rows.length >= 2 && (
+      <section class="mt-10" aria-labelledby="inside">
+        <h2 id="inside" class="text-2xl font-semibold tracking-tight">Inside {d.name}: {sub.rows.length} {subWords}</h2>
+        <p class="mt-1 text-ink-2">Pick a question to compare every {subWord} in {d.name}.</p>
+        <label class="mt-3 block max-w-md text-sm text-ink-2">
+          <span class="sr-only">Question</span>
+          <select id="sub-pick" class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-ink">
+            {sub.indicators.map((i) => <option value={i.id} selected={i.id === SUB_DEFAULT}>{i.label}</option>)}
+          </select>
+        </label>
+        <div class="mt-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <Chart
+            id="sub-map"
+            title={subDef.label}
+            subtitle={`By ${subWord}, Census 2024`}
+            height={480}
+            source={subSource}
+            spec={{
+              kind: 'map', unit: subDef.suffix, digits: subDef.digits, series: [],
+              map: {
+                geo: `/geo/subcounties/${d.code}.json`,
+                values: subDef.values,
+                names: sub.names,
+                breaks: subDef.breaks,
+                reference: { label: d.name, value: subDef.district },
+              },
+            }}
+          />
+          <div class="card overflow-hidden p-0">
+            <p class="px-4 pt-4 text-sm text-ink-2"><span id="sub-q">{subDef.question}</span> {d.name} overall: <strong class="text-ink" id="sub-dist">{subDef.districtText}</strong></p>
+            <p class="px-4 pt-1 text-sm text-ink-3" id="sub-facts">{subDef.facts}</p>
+            <div class="mt-2 max-h-[400px] overflow-y-auto">
+              <table class="tnum w-full text-left text-sm">
+                <thead class="sticky top-0 bg-surface text-ink-3">
+                  <tr><th class="px-4 py-2 font-medium">{subWord[0].toUpperCase() + subWord.slice(1)}</th><th class="px-4 py-2 font-medium">County</th><th class="px-4 py-2 text-right font-medium" id="sub-col">{subDef.label}</th></tr>
+                </thead>
+                <tbody id="sub-rows">
+                  {[...sub.rows].sort((a, b) => (subDef.values[b.code] ?? -1) - (subDef.values[a.code] ?? -1)).map((r) => (
+                    <tr class="border-t border-line"><td class="px-4 py-1.5 text-ink">{r.name}</td><td class="px-4 py-1.5 text-ink-3">{r.county}</td><td class="px-4 py-1.5 text-right font-medium">{subDef.texts[r.code]}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        {subNotes.map((n) => <p class="mt-2 text-sm text-ink-3">Note: {n.replace(/^[^:]+:\s*/, '')}</p>)}
+        <script type="application/json" id="sub-payload" set:html={safeJson(sub)} />
+      </section>
+    )}
+
     {(farming.length > 0 || farmParent) && (
       <section class="mt-10">
         <h2 class="text-2xl font-semibold tracking-tight">Farming in {d.name}</h2>
@@ -219,6 +279,42 @@ const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
     </section>
   </div>
 </Base>
+
+<script>
+  // Switch the sub-county map and table between questions (no page reload).
+  const el = document.getElementById('sub-payload');
+  if (el) {
+    type SubInd = { id: string; label: string; question: string; suffix: string; digits: number; values: Record<string, number | null>; texts: Record<string, string>; breaks: number[]; district: number | null; districtText: string; facts: string };
+    const data = JSON.parse(el.textContent!) as { rows: { code: string; name: string; county: string }[]; indicators: SubInd[] };
+    const $ = (id: string) => document.getElementById(id)!;
+    const pick = $('sub-pick') as HTMLSelectElement;
+    const districtName = ($('inside').textContent ?? '').replace(/^Inside\s+/, '').split(':')[0];
+    pick.addEventListener('change', () => {
+      const ind = data.indicators.find((i) => i.id === pick.value);
+      if (!ind) return;
+      $('sub-map').dispatchEvent(new CustomEvent('chart:update', { detail: {
+        unit: ind.suffix, digits: ind.digits, title: ind.label,
+        map: { values: ind.values, breaks: ind.breaks, reference: { label: districtName, value: ind.district } },
+      } }));
+      $('sub-q').textContent = ind.question;
+      $('sub-dist').textContent = ind.districtText;
+      $('sub-facts').textContent = ind.facts;
+      $('sub-col').textContent = ind.label;
+      const rows = [...data.rows].sort((a, b) => (ind.values[b.code] ?? -1) - (ind.values[a.code] ?? -1));
+      $('sub-rows').replaceChildren(...rows.map((r) => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-t border-line';
+        for (const [text, cls] of [[r.name, 'px-4 py-1.5 text-ink'], [r.county, 'px-4 py-1.5 text-ink-3'], [ind.texts[r.code], 'px-4 py-1.5 text-right font-medium']]) {
+          const td = document.createElement('td');
+          td.className = cls;
+          td.textContent = text;
+          tr.append(td);
+        }
+        return tr;
+      }));
+    });
+  }
+</script>
 
 <style>
   .strip {

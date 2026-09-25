@@ -5,12 +5,13 @@
     python run.py production            # Production section only (energy, industry, ...)
     python run.py indices               # house prices, construction costs, producer prices
     python run.py livestock             # Livestock Census by district (needs census.json)
+    python run.py subcounties           # census 2024 for every sub-county (~6 min, needs census.json)
 """
 
 import sys
 from collections import Counter
 
-from ubos import catalog, export, livestock, price_indices, production
+from ubos import catalog, export, livestock, price_indices, production, subcounties
 
 
 def main(argv: list[str]) -> None:
@@ -30,12 +31,15 @@ def main(argv: list[str]) -> None:
         production.build()
         price_indices.build()
         livestock.build()  # after export: uses the census districts it writes
+        subcounties.build()
     elif cmd == "production":
         production.build()
     elif cmd == "indices":
         price_indices.build()
     elif cmd == "livestock":
         livestock.build()
+    elif cmd == "subcounties":
+        subcounties.build()
     else:
         sys.exit(f"unknown command: {cmd}")
 
