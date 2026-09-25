@@ -1,0 +1,103 @@
+---
+import StoryPage from '../../../components/StoryPage.astro';
+import Chart from '../../../components/Chart.astro';
+import {
+  byAge, byEducation, byMarital, bySex, bySubregion, byWealth, domainsSorted, facts, national, notes, sources, survey, trend,
+} from '../../../lib/disability';
+
+const f = facts();
+const old = byAge[byAge.length - 1];
+const tiles = [
+  { label: `Living with a disability, ${survey.replace('UDHS ', '')}`, value: `${national}%`, note: 'of people aged 5 and over' },
+  { label: 'Women vs men', value: `${bySex.women}% vs ${bySex.men}%`, note: 'women are more affected' },
+  { label: `Aged ${old.age}`, value: `${old.pct}%`, note: 'have a disability' },
+  { label: 'Poorest vs richest fifth', value: `${byWealth[0].women}% vs ${byWealth[byWealth.length - 1].women}%`, note: 'women' },
+];
+const pair = (rows: { name: string; men: number; women: number }[]) => [
+  { name: 'Women', data: rows.map((r) => r.women), color: 2 },
+  { name: 'Men', data: rows.map((r) => r.men), color: 1 },
+];
+---
+
+<StoryPage
+  title="Living with a disability"
+  description={`About ${national}% of Ugandans aged 5 and over live with a disability. See who is most affected, by age, sex, region, wealth and schooling.`}
+  crumbs={[{ href: '/people/', label: 'People & Society' }, { href: '/people/health/', label: 'Health' }]}
+  kicker={`Health · ${survey.replace('UDHS', 'Uganda Demographic and Health Survey')}`}
+  lead={`${f[0]} ${f[1]}`}
+  tiles={tiles}
+  facts={f}
+  notes={notes}
+  sources={Object.values(sources)}
+>
+  <section class="grid gap-4 lg:grid-cols-2">
+    <Chart
+      id="age"
+      share="uganda-disability-by-age"
+      title="Disability rises with age"
+      subtitle={`% of people with a disability, by age, ${survey}`}
+      height={320}
+      source={sources.age}
+      spec={{ kind: 'bar', unit: '%', digits: 1, categories: byAge.map((a) => a.age), series: [{ name: 'With a disability', data: byAge.map((a) => a.pct) }], labelWidth: 60 }}
+    />
+    <Chart
+      id="domains"
+      title="What kind of difficulty?"
+      subtitle="% of people aged 5+ with some, or a lot of, difficulty"
+      height={320}
+      source={sources.domains}
+      spec={{ kind: 'bar', stacked: true, unit: '%', digits: 1, categories: domainsSorted.map((d) => d.name), series: [
+        { name: 'A lot of difficulty or cannot', data: domainsSorted.map((d) => d.severe), color: 2 },
+        { name: 'Some difficulty', data: domainsSorted.map((d) => d.some), color: 'muted' },
+      ], labelWidth: 200 }}
+    />
+  </section>
+
+  <section class="mt-12 grid gap-4 lg:grid-cols-2">
+    <Chart
+      id="subregion"
+      title="Where disability is most common"
+      subtitle="% of people with a disability, by sub-region"
+      height={440}
+      source={sources.region}
+      spec={{ kind: 'bar', unit: '%', digits: 1, categories: bySubregion.map((r) => r.name), series: pair(bySubregion), labelWidth: 90 }}
+    />
+    <div class="flex flex-col gap-4">
+      <Chart
+        id="wealth"
+        title="Poorer households, more disability"
+        subtitle="% with a disability, by household wealth"
+        height={250}
+        source={sources.wealth}
+        spec={{ kind: 'bar', unit: '%', digits: 1, categories: byWealth.map((w) => w.name), series: pair(byWealth), labelWidth: 110 }}
+      />
+      <Chart
+        id="trend"
+        title={`${trend[0].severe}% in ${trend[0].survey}, ${trend[trend.length - 1].severe}% in ${trend[trend.length - 1].survey}`}
+        subtitle="% of people aged 5+ with a disability, by survey"
+        height={170}
+        source={sources.trend}
+        spec={{ kind: 'bar', unit: '%', digits: 1, categories: trend.map((t) => t.survey), series: [{ name: 'With a disability', data: trend.map((t) => t.severe) }], labelWidth: 50 }}
+      />
+    </div>
+  </section>
+
+  <section class="mt-12 grid gap-4 lg:grid-cols-2">
+    <Chart
+      id="education"
+      title="Disability and schooling"
+      subtitle="% with a disability, by the highest level of school reached"
+      height={280}
+      source={sources.education}
+      spec={{ kind: 'bar', unit: '%', digits: 1, categories: byEducation.map((e) => e.name), series: pair(byEducation), labelWidth: 150 }}
+    />
+    <Chart
+      id="marital"
+      title="Disability and marriage"
+      subtitle="% with a disability, by marital status (widowed people are mostly older)"
+      height={280}
+      source={sources.marital}
+      spec={{ kind: 'bar', unit: '%', digits: 1, categories: byMarital.map((m) => m.name), series: pair(byMarital), labelWidth: 110 }}
+    />
+  </section>
+</StoryPage>

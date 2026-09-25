@@ -91,8 +91,9 @@ export const GET: APIRoute = ({ params }) => {
   chart.setOption({ ...(options.build(c.spec) as object), animation: false } as any);
   const chartSvg = chart.renderToSVGString();
   chart.dispose();
-  // Nest the chart's <svg> at its position in the card.
-  const inner = chartSvg.replace(/^<svg\b[^>]*>/, `<svg x="${PAD}" y="${top}" width="${chartW}" height="${chartH}" viewBox="0 0 ${chartW} ${chartH}">`);
+  // Nest the chart's <svg> at its position in the card. overflow=visible: server-side text widths are
+  // estimates, so long axis labels can start a few pixels left of the chart box (into the card's margin).
+  const inner = chartSvg.replace(/^<svg\b[^>]*>/, `<svg x="${PAD}" y="${top}" width="${chartW}" height="${chartH}" viewBox="0 0 ${chartW} ${chartH}" overflow="visible">`);
 
   let lx = W - PAD;
   const legend = legendItems

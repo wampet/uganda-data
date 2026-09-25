@@ -21,6 +21,7 @@ import * as GE from './gender';
 import * as WB from './wellbeing';
 import * as MN from './mining';
 import * as TV from './travel';
+import * as DS from './disability';
 
 export interface SharedChart {
   slug: string;
@@ -449,6 +450,31 @@ export const sharedCharts: SharedChart[] = [
     source: src(WB.sources.level2),
     page: { href: '/wellbeing/nsi-income/national-scorecard/', label: 'More on the national scorecard' },
     topic: 'Wellbeing',
+  },
+  {
+    slug: 'uganda-disability-by-age',
+    title: 'Disability rises with age',
+    subtitle: `% of Ugandans with a disability, by age, ${DS.survey}`,
+    description: `${DS.facts()[0]} ${DS.facts()[1]}`,
+    spec: { kind: 'bar', unit: '%', digits: 1, categories: DS.byAge.map((a) => a.age), series: [{ name: 'With a disability', data: DS.byAge.map((a) => a.pct) }], labelWidth: 60 },
+    height: 420,
+    source: src(DS.sources.age),
+    page: { href: '/people/health/disability/', label: 'More on disability' },
+    topic: 'People',
+  },
+  {
+    slug: 'uganda-spousal-violence',
+    title: 'Violence from a husband, wife or partner',
+    subtitle: '% of Ugandans aged 15–49 who have ever had a partner, 2022',
+    description: `${GE.violenceFacts()[0]} ${GE.violenceFacts()[1]}`,
+    spec: { kind: 'bar', unit: '%', digits: 0, categories: GE.violence.spousal.map((r) => r.name), series: [
+      { name: 'Women', data: GE.violence.spousal.map((r) => r.women), color: 2 },
+      { name: 'Men', data: GE.violence.spousal.map((r) => r.men), color: 1 },
+    ], labelWidth: 170 },
+    height: 400,
+    source: src(GE.sources.spousal),
+    page: { href: '/people/gender/women-and-men/', label: 'More on women and men' },
+    topic: 'People',
   },
   {
     slug: 'uganda-pay-gap',

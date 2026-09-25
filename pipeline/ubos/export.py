@@ -1826,6 +1826,88 @@ def build_travel_and_building(records: list[dict]) -> None:
     })
 
 
+def build_disability_and_violence(records: list[dict]) -> None:
+    """UDHS 2022 tables: functional difficulty (disability) and violence against women and men."""
+    from .parsers import wide
+
+    def rows_of(title_start):
+        src = _dataset(records, title_start)
+        return src, [r for r in wide.load(get_file(src["url"])) if any(v not in (None, "") for v in r)]
+    lab = lambda v: " ".join(str(v).split()) if v is not None else ""
+
+    def two_col(title_start):
+        """Label + two numeric columns (e.g. Male/Female), with the column names from the header row."""
+        src, rows = rows_of(title_start)
+        h = next(i for i, r in enumerate(rows) if sum(1 for c in r[1:3] if isinstance(c, str) and c.strip()) == 2)
+        cols = [lab(c) for c in rows[h][1:3]]
+        out = [{"name": lab(r[0]), cols[0]: wide.num(r[1]), cols[1]: wide.num(r[2])}
+               for r in rows[h + 1:] if lab(r[0]) and not lab(r[0]).lower().startswith("source") and wide.num(r[1]) is not None]
+        return src, cols, out
+
+    # ---- Disability (a lot of difficulty, or cannot do at all, in at least one domain) ----
+    s_dom, rows = rows_of("Prevalence of functional difficulty by domain for persons aged 5+")
+    domains = []
+    for r in rows:
+        name = lab(r[0])
+        if name.lower().startswith("difficulty") and wide.num(r[7]) is not None:
+            parts = [wide.num(v) or 0 for v in r[1:6]]
+            if abs(sum(parts) - 100) > 0.6:
+                raise ValueError(f"disability: '{name}' degrees don't add up to 100")
+            domains.append({"name": name.replace("Difficulty ", "").capitalize(), "some": wide.num(r[2]), "severe": wide.num(r[7])})
+    total = next(r for r in rows if lab(r[0]) == "Total")
+    national = wide.num(total[7])
+
+    s_trend, rows = rows_of("Comparisons of prevalence of functional difficulty level by years")
+    trend = sorted(({"survey": lab(r[0]).replace("UDHS ", ""), "severe": wide.num(r[4]), "some": wide.num(r[1])}
+                    for r in rows if lab(r[0]).startswith("UDHS")), key=lambda x: x["survey"])
+    if trend[-1]["severe"] != national:
+        raise ValueError("disability: national prevalence differs between the domain and trend tables")
+
+    s_age, rows = rows_of("Prevalence of disability by Age")
+    by_age = [{"age": lab(r[0]), "pct": wide.num(r[1])} for r in rows if re.match(r"^\d", lab(r[0]))]
+    s_reg, cols, by_region = two_col("Persons with a lot of difficulty")
+    s_wealth, _, by_wealth = two_col("Family income level by disability")
+    s_edu, _, by_education = two_col("Education attainment of persons with functional")
+    s_mar, _, by_marital = two_col("Percentage of persons with a lot of difficulties or who cannot do at all by marital")
+    _write("disability.json", {
+        "sources": {"domains": _src(s_dom), "trend": _src(s_trend), "age": _src(s_age), "region": _src(s_reg),
+                    "wealth": _src(s_wealth), "education": _src(s_edu), "marital": _src(s_mar)},
+        "survey": "UDHS 2022",
+        "national_pct": national,
+        "domains": domains,
+        "trend": trend,
+        "by_age": by_age,
+        "by_subregion": by_region,
+        "by_wealth": by_wealth,
+        "by_education": by_education,
+        "by_marital": by_marital,
+        "notes": [
+            "Disability here means having a lot of difficulty, or being unable, to do at least one basic activity: seeing, "
+            "hearing, walking, remembering, self-care or communicating. People aged 5 and over, Uganda Demographic and Health "
+            "Survey 2022.",
+            "UBOS labels the wealth table “family income”; the groups are household wealth fifths, from poorest to richest.",
+            "Survey estimates for single sub-regions are less precise than national figures.",
+        ],
+    })
+
+    # ---- Violence ------------------------------------------------------------------------------
+    s_phys, rows = rows_of("Trends in physical violence")
+    physical = [{"year": wide.year_of(r[0]), "women": wide.num(r[1]), "men": wide.num(r[2])} for r in rows if wide.year_of(r[0])]
+    s_sp, _, spousal = two_col("Forms of spousal violence")
+    s_help, _, help_ = two_col("Help seeking by type of violence")
+    _write("violence.json", {
+        "sources": {"physical": _src(s_phys), "spousal": _src(s_sp), "help": _src(s_help)},
+        "physical_trend": physical,
+        "spousal_2022": spousal,
+        "help_seeking_2022": help_,
+        "notes": [
+            "Violence figures are from the Uganda Demographic and Health Surveys (people aged 15–49). Physical violence "
+            "means any since age 15; spousal violence is by a husband, wife or partner, ever.",
+            "Help seeking is the share of people who experienced violence who sought help from anyone.",
+        ],
+    })
+
+
 def build(refresh: bool = False) -> None:
     records = catalog_mod.crawl(refresh=refresh)
     build_catalog(records)
@@ -1847,3 +1929,4 @@ def build(refresh: bool = False) -> None:
     build_mining(records)
     build_governance(records)
     build_travel_and_building(records)
+    build_disability_and_violence(records)

@@ -5,6 +5,7 @@ import * as J from './jobs';
 import * as V from './poverty';
 import * as CR from './crime';
 import { census2024, life, sources as popSources } from './population';
+import violenceJson from '../data/violence.json';
 
 const last = <T,>(a: T[]) => a[a.length - 1];
 const at = (surveys: string[], s: string) => {
@@ -56,6 +57,22 @@ export const victimsFemale = CR.victims
   .sort((a, b) => b.female - a.female);
 export const offendersMalePct = CR.maleOffenderPct;
 
+// Violence (UDHS): physical violence since age 15, spousal violence and help seeking.
+const vio = violenceJson as unknown as {
+  sources: Record<'physical' | 'spousal' | 'help', { title: string; url: string }>;
+  physical_trend: { year: string; women: number; men: number }[];
+  spousal_2022: { name: string; Women: number; Men: number }[];
+  help_seeking_2022: { name: string; Women: number; Men: number }[];
+  notes: string[];
+};
+export const violence = {
+  physical: vio.physical_trend,
+  // The single forms, then "any of these"; the combined "and" rows are left out of the chart.
+  spousal: vio.spousal_2022.filter((r) => !/ and /i.test(r.name)).map((r) => ({ name: r.name.replace(/Physical or sexual or emotional/i, 'Any of these'), women: r.Women, men: r.Men })),
+  help: vio.help_seeking_2022.map((r) => ({ name: r.name, women: r.Women, men: r.Men })),
+  notes: vio.notes,
+};
+
 export const sources = {
   literacy: E.sources.literacy,
   jobs: J.sources.youth,
@@ -66,9 +83,23 @@ export const sources = {
   history: popSources.history,
   victims: CR.sources.victims,
   offenders: CR.sources.offenders,
+  ...vio.sources,
 };
 
 const n0 = (v: number) => Math.round(v).toLocaleString('en-UG');
+
+export function violenceFacts() {
+  const p0 = violence.physical[0], p1 = violence.physical[violence.physical.length - 1];
+  const any = violence.spousal.find((r) => r.name === 'Any of these')!;
+  const phys = violence.spousal.find((r) => /^physical violence$/i.test(r.name))!;
+  const help = violence.help.find((r) => /physical and sexual/i.test(r.name))!;
+  return [
+    `${any.women}% of women who have ever had a partner have experienced physical, sexual or emotional violence from them, and ${any.men}% of men (${p1.year}).`,
+    `${phys.women}% of these women experienced physical violence from a partner, against ${phys.men}% of men.`,
+    `The share of women who have faced physical violence since age 15 fell from ${p0.women}% in ${p0.year} to ${p1.women}% in ${p1.year}.`,
+    `Only ${help.women}% of women who experienced both physical and sexual violence sought help from anyone.`,
+  ];
+}
 
 export function facts() {
   const sex = victimsFemale.find((v) => /^sex/i.test(v.name))!;

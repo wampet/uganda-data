@@ -22,6 +22,8 @@ import govSurveyJson from '../data/governance.json';
 import transportMoreJson from '../data/transport_more.json';
 import tourismMoreJson from '../data/tourism_more.json';
 import buildingJson from '../data/building.json';
+import disabilityJson from '../data/disability.json';
+import violenceJson from '../data/violence.json';
 import { chartRows } from './chart-options';
 import { sharedCharts } from './share-charts';
 import { districts, indicators, national, source as censusSource } from './census';
@@ -78,6 +80,8 @@ export const datasets: Dataset[] = [
   ds('transport-extra', 'Rail, air cargo and transport licences', 'Railway and ferry freight, Entebbe air cargo and public transport licences issued.', '/production/transport/rail-air-and-licences/', transportMoreJson),
   ds('travel', 'Arrivals, hotels and attractions', 'Arrivals by month and border (2023), EAC visitors, hotel occupancy and visitors to major attractions.', '/production/tourism/travel-and-attractions/', tourismMoreJson),
   ds('building-plans', 'Building plans and permits', 'Building plans submitted, approved, rejected and deferred, and occupation permits, 2016–2020.', '/production/construction/building-plans/', buildingJson),
+  ds('disability', 'Disability (functional difficulty)', 'Disability by type, age, sex, sub-region, wealth, schooling and marital status (UDHS 2022), with trends since 2011.', '/people/health/disability/', disabilityJson),
+  ds('violence', 'Violence against women and men', 'Physical violence since 2006, spousal violence and help seeking (UDHS 2022).', '/people/gender/women-and-men/', violenceJson),
   ds('districts', 'Census 2024 by district', 'Indicators for every district, city and sub-region from the 2024 census.', '/places/districts/', censusJson),
 ];
 

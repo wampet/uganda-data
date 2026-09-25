@@ -5,6 +5,7 @@ import Chart from '../../../components/Chart.astro';
 import {
   facts, gaps, lifeExp, lifeLatest, literacy, literacyYear, neet, pay, payBySector, payRatio, people, sources, survey,
   victimsFemale,
+  violence, violenceFacts,
 } from '../../../lib/gender';
 import { literacy as lit } from '../../../lib/education';
 
@@ -132,6 +133,54 @@ const topics = [
       </div>
     </section>
 
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">Violence at home</h2>
+      <ul class="mt-3 max-w-3xl list-disc space-y-1 pl-5 text-ink-2">
+        {violenceFacts().map((f) => <li>{f}</li>)}
+      </ul>
+      <div class="mt-5 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="spousal"
+          share="uganda-spousal-violence"
+          title="Violence from a husband, wife or partner"
+          subtitle="% of people aged 15–49 who have ever had a partner, 2022"
+          height={320}
+          source={sources.spousal}
+          spec={{ kind: 'bar', unit: '%', digits: 0, categories: violence.spousal.map((r) => r.name), series: [
+            { name: 'Women', data: violence.spousal.map((r) => r.women), color: 2 },
+            { name: 'Men', data: violence.spousal.map((r) => r.men), color: 1 },
+          ], labelWidth: 150 }}
+        />
+        <Chart
+          id="physical-trend"
+          title="Physical violence is becoming less common"
+          subtitle="% of people aged 15–49 who have experienced physical violence since age 15"
+          height={320}
+          source={sources.physical}
+          spec={{ kind: 'line', unit: '%', digits: 0, x: violence.physical.map((p) => p.year), yMin: 0, series: [
+            { name: 'Women', data: violence.physical.map((p) => p.women), color: 2, points: true },
+            { name: 'Men', data: violence.physical.map((p) => p.men), color: 1, points: true },
+          ] }}
+        />
+      </div>
+      <div class="mt-4">
+        <Chart
+          id="help-seeking"
+          title="Most victims do not seek help"
+          subtitle="% of people who experienced violence who sought help from anyone, 2022"
+          height={220}
+          source={sources.help}
+          spec={{ kind: 'bar', unit: '%', digits: 0, categories: violence.help.map((r) => r.name), series: [
+            { name: 'Women', data: violence.help.map((r) => r.women), color: 2 },
+            { name: 'Men', data: violence.help.map((r) => r.men), color: 1 },
+          ], labelWidth: 200 }}
+        />
+      </div>
+      <p class="mt-3 text-sm text-ink-3">
+        If a child is at risk, Uganda’s free child helpline is Sauti 116. In an emergency, call the police on 999 or 112.
+      </p>
+    </section>
+
     <section class="mt-10 grid gap-4 md:grid-cols-2">
       <div class="card p-5 text-ink-2">
         <h2 class="text-lg font-semibold text-ink">About these numbers</h2>
@@ -139,6 +188,7 @@ const topics = [
           <li>Figures come from different surveys and years, shown next to each one. Compare women and men within a row, not across rows.</li>
           <li>Youth and farming figures use the {survey} survey. The 2021 labour force survey counted young people who only farm for their family differently, so its figures are not comparable.</li>
           <li>The shoes figure compares households headed by a woman (“Women”) with households headed by a man (“Men”).</li>
+          {violence.notes.map((n) => <li>{n}</li>)}
           <li>UBOS’s Gender topic itself holds only health-facility counts of gender-based violence survivors. The 2017–2020 district table covers only districts from Abim to Kwania, so it cannot give a national total and is not charted.</li>
         </ul>
       </div>

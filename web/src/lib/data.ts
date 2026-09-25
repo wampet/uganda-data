@@ -139,6 +139,11 @@ export const featured: Record<string, { href: string; title: string; blurb: stri
   ],
   health: [
     {
+      href: '/people/health/disability/',
+      title: 'Living with a disability',
+      blurb: 'How many Ugandans have a disability, and who is most affected: by age, sex, region, wealth and schooling.',
+    },
+    {
       href: '/people/health/health-in-uganda/',
       title: 'Are Ugandans getting healthier?',
       blurb: 'Child deaths, fertility, births in health facilities, vaccination, stunting, mosquito nets and health spending.',
