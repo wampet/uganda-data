@@ -13,6 +13,7 @@ const fullTitle = title === 'Home' ? 'Uganda in Data — official statistics, ma
 const path = Astro.url.pathname;
 const canonical = new URL(path, Astro.site);
 const imageUrl = image ? new URL(image, Astro.site).href : undefined;
+import SiteSearch from '../components/SiteSearch.astro';
 ---
 
 <!doctype html>
@@ -100,6 +101,7 @@ const imageUrl = image ? new URL(image, Astro.site).href : undefined;
               <a href="/sources/" class="block px-2 pt-1 text-sm text-ink-2 hover:text-ink">All UBOS files</a>
             </div>
           </details>
+          <SiteSearch />
           <a href="/charts/" class="hidden rounded-lg px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink sm:block">Charts</a>
           <a href="/sources/" class="hidden rounded-lg px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink sm:block">All UBOS files</a>
           <button id="theme-toggle" type="button" class="grid h-9 w-9 place-items-center rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink" aria-label="Toggle dark mode">

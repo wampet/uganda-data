@@ -273,4 +273,11 @@ const cpiFiles = catalog.filter((c) => c.family === 'cpi').slice(0, 6);
     const hit = all.find((it) => it.name.toLowerCase() === input.value.trim().toLowerCase());
     if (hit) chart.dispatchEvent(new CustomEvent('chart:select', { detail: { name: hit.name, data: hit.yoy } }));
   });
+  // Deep link from site search: /economy/prices/inflation/?item=Sugar
+  const wanted = new URL(location.href).searchParams.get('item');
+  if (wanted) {
+    input.value = wanted;
+    input.dispatchEvent(new Event('change'));
+    chart.scrollIntoView({ block: 'center' });
+  }
 </script>
