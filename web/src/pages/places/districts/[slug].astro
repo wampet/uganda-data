@@ -3,8 +3,8 @@ import Base from '../../../layouts/Base.astro';
 import Chart from '../../../components/Chart.astro';
 import DistrictSearch from '../../../components/DistrictSearch.astro';
 import {
-  districtHighlights, districts, fmtValue, groups, indicatorById, indicators, mapNames, mapSlugs, national, notes,
-  rankOf, siblings, source, subregionByCode, type District,
+  districtHighlights, districts, farmingIndicators, farmingSources, fmtValue, groups, indicatorById, indicators, mapNames,
+  mapSlugs, national, notes, rankOf, siblings, source, subregionByCode, type District,
 } from '../../../lib/census';
 
 export function getStaticPaths() {
@@ -50,6 +50,20 @@ const scaleMax = (vals: (number | null)[]) => {
   return m <= 20 ? 25 : m <= 45 ? 50 : 100;
 };
 const pct = (v: number | null, max: number) => `${Math.min(100, ((v ?? 0) / max) * 100)}%`;
+// Livestock Census 2021: cities (and Terego) are counted inside a parent district.
+const PARENT_OF: Record<string, string> = {
+  'Arua City': 'Arua', Terego: 'Arua', 'Gulu City': 'Gulu', 'Fort Portal City': 'Kabarole', 'Hoima City': 'Hoima',
+  'Jinja City': 'Jinja', 'Lira City': 'Lira', 'Masaka City': 'Masaka', 'Mbale City': 'Mbale',
+  'Mbarara City': 'Mbarara', 'Soroti City': 'Soroti',
+};
+const PARENT_OF_INV: Record<string, string> = Object.entries(PARENT_OF).reduce<Record<string, string>>(
+  (acc, [child, parent]) => ({ ...acc, [parent]: acc[parent] ? `${acc[parent]} and ${child}` : child }),
+  {},
+);
+const farmParent = districts.find((x) => x.name === PARENT_OF[d.name]);
+const farming = farmingIndicators
+  .map((i) => ({ i, v: d.values[i.id], s: sr.values[i.id], n: national[i.id], ...rankOf(i.id, d.code) }))
+  .filter((r) => r.v != null);
 const ordinal = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
 const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 ---
@@ -144,6 +158,43 @@ const up = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
         ))}
       </div>
     </section>
+
+    {(farming.length > 0 || farmParent) && (
+      <section class="mt-10">
+        <h2 class="text-2xl font-semibold tracking-tight">Farming in {d.name}</h2>
+        {farming.length > 0 ? (
+          <div class="card mt-4 overflow-x-auto p-2">
+            <table class="tnum w-full text-left text-sm">
+              <thead class="text-ink-3">
+                <tr><th class="px-3 py-2 font-medium"></th><th class="px-3 py-2 font-medium">{d.name}</th><th class="px-3 py-2 font-medium">{sr.name}</th><th class="px-3 py-2 font-medium">Uganda</th><th class="px-3 py-2 font-medium">Rank</th></tr>
+              </thead>
+              <tbody>
+                {farming.map((r) => (
+                  <tr class="border-t border-line">
+                    <td class="px-3 py-2"><a class="text-ink hover:underline" href={`/places/districts/?show=${r.i.id}`}>{r.i.label}</a></td>
+                    <td class="px-3 py-2 font-semibold text-ink">{fmtValue(r.i, r.v)}</td>
+                    <td class="px-3 py-2 text-ink-2">{fmtValue(r.i, r.s)}</td>
+                    <td class="px-3 py-2 text-ink-2">{fmtValue(r.i, r.n)}</td>
+                    <td class="px-3 py-2 text-ink-3">{ordinal(r.rank)} of {r.of}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p class="card mt-4 p-5 text-ink-2">
+            The 2021 livestock census counted {d.name}’s animals as part of{' '}
+            <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={`/places/districts/${farmParent!.slug}/`}>{farmParent!.name}</a>.
+          </p>
+        )}
+        {farmingSources[0] && (
+          <p class="mt-2 text-xs text-ink-3">
+            Source: <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={farmingSources[0].url} rel="noopener">UBOS, National Livestock Census 2021</a>.
+            Animals per 100 people use the 2024 census population.{farmParent ? '' : PARENT_OF_INV[d.name] ? ` Includes ${PARENT_OF_INV[d.name]}.` : ''}
+          </p>
+        )}
+      </section>
+    )}
 
     <section class="mt-10 grid gap-4 lg:grid-cols-[1fr_1fr]">
       <div class="card p-5">

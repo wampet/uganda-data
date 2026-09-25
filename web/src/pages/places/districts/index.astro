@@ -4,8 +4,8 @@ import Base from '../../../layouts/Base.astro';
 import Chart from '../../../components/Chart.astro';
 import DistrictSearch from '../../../components/DistrictSearch.astro';
 import {
-  breaksFor, districts, digitsFor, fmtValue, groups, indicatorById, indicatorFacts, indicators, mapNames, mapSlugs,
-  mapValues, national, notes, ranked, source, subregions, unitSuffix,
+  breaksFor, districts, digitsFor, farmingNotes, farmingSources, fmtValue, groups, indicatorById, indicatorFacts,
+  mapIndicators as indicators, mapNames, mapSlugs, mapValues, national, notes, ranked, source, sourceFor, subregions, unitSuffix,
 } from '../../../lib/census';
 
 const DEFAULT = 'grid';
@@ -22,6 +22,7 @@ const payload = {
     breaks: breaksFor(i.id),
     values: mapValues(i.id),
     facts: indicatorFacts(i.id),
+    source: sourceFor(i.id),
     subregions: subregions
       .map((s) => ({ name: s.name, v: s.values[i.id] }))
       .filter((s) => s.v != null)
@@ -140,6 +141,11 @@ const common = { unit: unitSuffix(ind), digits: digitsFor(ind) };
           people-per-km² figures look lower than life on the ground.
         </p>
         {notes.map((n) => <p class="mt-2 text-sm text-ink-3">Note: {n}</p>)}
+        <p class="mt-3 text-ink-2">
+          The <strong>Farming</strong> questions come from the
+          {farmingSources[0] && <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={farmingSources[0].url} rel="noopener"> National Livestock Census 2021</a>}.
+        </p>
+        {farmingNotes.map((n) => <p class="mt-2 text-sm text-ink-3">Note: {n}</p>)}
       </div>
       <div class="card p-5">
         <h2 class="text-lg font-semibold">All districts A–Z</h2>
@@ -158,6 +164,7 @@ const common = { unit: unitSuffix(ind), digits: digitsFor(ind) };
     id: string; label: string; question: string; digits: number; suffix: string; nationalText: string;
     national: number | null; breaks: number[]; values: Record<string, number | null>; facts: string[];
     subregions: { name: string; v: number | null }[];
+    source: { title: string; url: string };
   };
   const payload = JSON.parse(document.getElementById('census-payload')!.textContent!) as { indicators: Ind[]; names: Record<string, string> };
   const byId = new Map(payload.indicators.map((i) => [i.id, i]));
@@ -186,6 +193,14 @@ const common = { unit: unitSuffix(ind), digits: digitsFor(ind) };
       categories: ind.subregions.map((s) => s.name), series: [{ name: ind.label, data: ind.subregions.map((s) => s.v) }],
     });
 
+    // The source line follows the indicator (census portal or Livestock Census).
+    for (const id of ['district-map', 'subregions']) {
+      const a = document.querySelector<HTMLAnchorElement>(`#${id} footer a[rel="noopener"]`);
+      if (a) {
+        a.href = ind.source.url;
+        a.textContent = `UBOS, ${ind.source.title}`;
+      }
+    }
     $('q').textContent = ind.question;
     $('nat').textContent = ind.nationalText;
     const facts = $('facts');

@@ -1,6 +1,7 @@
 // Census 2024 district data: names, rankings, map classes and plain-language
 // facts. All computed at build time from the pipeline's census.json.
 import censusJson from '../data/census.json';
+import livestockJson from '../data/livestock.json';
 
 export interface Indicator {
   id: string;
@@ -29,21 +30,51 @@ export function titleCase(s: string) {
 }
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+// Livestock Census 2021 district indicators (pipeline: ubos/livestock.py). Kept
+// separate from `indicators` so census-only consumers (the data API's "Census
+// 2024 by district" table, other pages) are unaffected; the district map and
+// district pages use `mapIndicators`, which carries both.
+const livestock = livestockJson as unknown as {
+  sources: { title: string; url: string }[];
+  indicators: Indicator[];
+  districts: Record<string, Values>;
+  subregions: Record<string, Values>;
+  national: Values;
+  notes: string[];
+};
+
 export const source = raw.source;
 export const notes = raw.notes;
 export const indicators = raw.indicators;
-export const indicatorById = new Map(indicators.map((i) => [i.id, i]));
-export const national = raw.national;
-export const districts: District[] = raw.districts.map((d) => ({ ...d, name: titleCase(d.name), slug: slugify(d.name) }));
-export const subregions: Subregion[] = raw.subregions.map((s) => ({ ...s, name: titleCase(s.name) }));
+export const farmingIndicators = livestock.indicators;
+export const farmingSources = livestock.sources;
+export const farmingNotes = livestock.notes;
+export const mapIndicators = [...indicators, ...farmingIndicators];
+export const indicatorById = new Map(mapIndicators.map((i) => [i.id, i]));
+const farmingIds = new Set(farmingIndicators.map((i) => i.id));
+/** The UBOS source behind an indicator (census portal or Livestock Census). */
+export const sourceFor = (id: string) =>
+  farmingIds.has(id) ? { title: 'National Livestock Census 2021', url: livestock.sources[0]?.url ?? source.url } : source;
+export const national: Values = { ...raw.national, ...livestock.national };
+export const districts: District[] = raw.districts.map((d) => ({
+  ...d,
+  name: titleCase(d.name),
+  slug: slugify(d.name),
+  values: { ...d.values, ...(livestock.districts[d.code] ?? {}) },
+}));
+export const subregions: Subregion[] = raw.subregions.map((s) => ({
+  ...s,
+  name: titleCase(s.name),
+  values: { ...s.values, ...(livestock.subregions[s.code] ?? {}) },
+}));
 export const subregionByCode = new Map(subregions.map((s) => [s.code, s]));
 export const districtByCode = new Map(districts.map((d) => [d.code, d]));
 
-export const groups = [...new Set(indicators.map((i) => i.group))];
+export const groups = [...new Set(mapIndicators.map((i) => i.group))];
 
 // ---- formatting ----------------------------------------------------------
 export function digitsFor(ind: Indicator) {
-  return ind.id === 'population' || ind.id === 'density' ? 0 : ind.id === 'hh_size' ? 1 : 1;
+  return ind.id === 'population' || ind.id === 'density' || ind.unit === 'kg' ? 0 : 1;
 }
 export function unitSuffix(ind: Indicator) {
   return ind.unit === '%' ? '%' : '';
@@ -53,6 +84,8 @@ export function fmtValue(ind: Indicator, v: number | null | undefined) {
   if (ind.id === 'population') return Math.round(v).toLocaleString('en-UG');
   if (ind.id === 'density') return `${Math.round(v).toLocaleString('en-UG')} per km²`;
   if (ind.id === 'hh_size') return `${v.toFixed(1)} people`;
+  if (ind.unit === 'kg') return `${Math.round(v).toLocaleString('en-UG')} kg`;
+  if (ind.unit === 'per 100 people') return `${v.toFixed(1)} per 100 people`;
   return `${v.toFixed(1)}%`;
 }
 
@@ -144,7 +177,7 @@ export function indicatorFacts(id: string) {
   const facts = [
     `Highest: ${top.name} (${fmtValue(ind, top.values[id])}). Lowest: ${bottom.name} (${fmtValue(ind, bottom.values[id])}).`,
   ];
-  if (nat != null && ind.unit === '%') {
+  if (nat != null && (ind.unit === '%' || ind.unit === 'per 100 people')) {
     const above = list.filter((d) => d.values[id]! > nat).length;
     facts.push(`${above} of ${list.length} districts are above the national figure.`);
   }
