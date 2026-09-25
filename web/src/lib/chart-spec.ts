@@ -71,6 +71,12 @@ export interface ChartSpec {
   selectTarget?: string;
   highlight?: string[];
   labelWidth?: number;
+  /** line: an "Add" picker listing the `pool` keys, so readers compare several at once */
+  picker?: { label: string; max?: number; initial?: string[] };
+  /** series are parts of one whole: offer a Count | Share toggle (share = % of the total at each point) */
+  relative?: boolean;
+  /** an extra Map tab showing the same measure by area (same unit and digits) */
+  mapView?: MapSpec;
   /** line/bar series; unused for maps */
   series: ChartSeries[];
 }

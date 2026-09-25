@@ -13,6 +13,9 @@ const natByYear = new Map(national.years.map((y, i) => [y, national.rate[i]]));
 const regionMax = Math.ceil(Math.max(...byRegion.rows.flatMap((r) => r.values.filter((v): v is number => v != null))) / 10) * 10;
 const regionOrder = ['Northern', 'Eastern', 'Western', 'Central', 'Kampala'];
 const regionRows = regionOrder.map((n) => byRegion.rows.find((r) => r.name === n)!).filter(Boolean);
+// Map classes: one per region, split halfway between neighbouring latest values.
+const regionLatest = regionRows.map((r) => r.values[r.values.length - 1]).filter((v): v is number => v != null).sort((a, b) => a - b);
+const regionBreaks = regionLatest.slice(1).map((v, i) => Math.round((v + regionLatest[i]) / 2));
 
 // Poverty dynamics (panel of the same households): regions and residence.
 const dynRows = dynamics.rows.filter((r) => r.group === 'Region' || r.group === 'Residence');
@@ -103,6 +106,26 @@ const tiles = [
       <p class="mt-1 max-w-3xl text-ink-2">
         Each small chart is one region, on the same scale. The grey line is Uganda as a whole.
       </p>
+      <div class="mt-4">
+        <Chart
+          id="poverty-regions"
+          title="Poverty by region"
+          subtitle={`Share of people below the poverty line, ${byRegion.years[0]}–${latestYear}. Switch to Map for ${latestYear}.`}
+          height={320}
+          source={nationalSource}
+          spec={{
+            kind: 'line', unit: '%', digits: 1, x: byRegion.years, yMin: 0,
+            series: regionRows.map((r, i) => ({ name: r.name, data: r.values, color: i + 1, points: true })),
+            mapView: {
+              geo: '/geo/regions.json',
+              values: Object.fromEntries(regionRows.map((r) => [r.name, L(r.values) ?? null])),
+              names: Object.fromEntries(regionRows.map((r) => [r.name, r.name])),
+              breaks: regionBreaks,
+              reference: { label: 'Uganda', value: latestRate },
+            },
+          }}
+        />
+      </div>
       <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {regionRows.map((r) => (
           <Chart

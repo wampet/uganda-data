@@ -12,7 +12,8 @@ const source = cpi.source;
 const allFacts = facts();
 const delta = headline - headlinePrev;
 
-const pool = Object.fromEntries(divisions.map((d) => [d.name, yoyOf(d.id)]));
+// Every spending category and every town, so readers can add any of them to the trend.
+const pool = Object.fromEntries([...divisions.map((d) => [d.name, yoyOf(d.id)]), ...centres.map((c) => [c.name, yoyOf(c.id)])]);
 
 const tiles = [
   { label: 'Core inflation', value: core, note: 'Excludes food crops and fuel, which swing a lot' },
@@ -106,6 +107,7 @@ const cpiFiles = catalog.filter((c) => c.family === 'cpi').slice(0, 6);
             { name: 'Core', data: yoyOf('core'), color: 'muted' },
           ],
           pool,
+          picker: { label: 'a category or town', max: 5 },
         }}
       />
       <Chart

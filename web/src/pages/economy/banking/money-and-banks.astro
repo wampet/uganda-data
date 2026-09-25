@@ -94,7 +94,7 @@ const lifeNonLife = life.years.map((_, i) => i);
         subtitle="Broad money (cash and bank deposits), UGX trillion, June"
         height={360}
         source={sources.money}
-        spec={{ kind: 'bar', stacked: true, unit: ' tn', digits: 1, categories: moneyYears, series: [
+        spec={{ kind: 'bar', stacked: true, relative: true, unit: ' tn', digits: 1, categories: moneyYears, series: [
           { name: 'Cash outside banks', data: T(money.currency), color: 3 },
           { name: 'Shilling deposits', data: money.m3.map((m, i) => (m - money.currency[i] - money.fx_deposits[i]) / 1000), color: 1 },
           { name: 'Foreign currency deposits', data: T(money.fx_deposits), color: 2 },

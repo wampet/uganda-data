@@ -55,6 +55,14 @@ const heads =
 const legend = (spec.kind === 'line' && (spec.series.length > 1 || spec.pool)) || spec.kind === 'pyramid' || (spec.kind === 'bar' && spec.series.length > 1);
 // Bars key with a box, lines with a short stroke.
 const boxKeys = spec.kind === 'bar';
+
+// Explorer controls (all opt-in through the spec, see lib/chart-spec.ts).
+const tabs = table && spec.kind !== 'map' ? ['chart', ...(spec.mapView ? ['map'] : []), 'table'] : [];
+const TAB_LABEL: Record<string, string> = { chart: 'Chart', map: 'Map', table: 'Table' };
+const pickable = spec.kind === 'line' && spec.picker && spec.pool ? Object.keys(spec.pool).sort((a, b) => a.localeCompare(b)) : [];
+const timeline = spec.kind === 'line' && n >= 6;
+const xs = spec.x ?? [];
+const tlLabel = (i: number) => (xs.length ? (spec.xNumeric ? String(xs[i]) : monthLabel(String(xs[i]))) : '');
 ---
 
 <figure id={id} data-chart class="chart card p-4 sm:p-5" data-source-title={source?.title} data-source-url={source?.url}>
@@ -72,10 +80,23 @@ const boxKeys = spec.kind === 'bar';
     </button>
   </header>
 
-  {(ranges || legend) && (
+  {(ranges || legend || tabs.length > 0 || spec.relative || pickable.length > 0) && (
     <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+      {tabs.length > 0 && (
+        <div class="seg" role="tablist" aria-label="Show as">
+          {tabs.map((v) => (
+            <button type="button" role="tab" data-view={v} aria-selected={v === 'chart' ? 'true' : 'false'} aria-pressed={v === 'chart' ? 'true' : 'false'}>{TAB_LABEL[v]}</button>
+          ))}
+        </div>
+      )}
+      {spec.relative && (
+        <div class="seg" role="group" aria-label="Values or shares" data-hide-in="map">
+          <button type="button" data-relative="0" aria-pressed="true">Count</button>
+          <button type="button" data-relative="1" aria-pressed="false">Share %</button>
+        </div>
+      )}
       {ranges && (
-        <div class="seg" role="group" aria-label="Time range">
+        <div class="seg" role="group" aria-label="Time range" data-hide-in="table map">
           {[['12', '1Y'], ['60', '5Y'], ['all', 'All']].map(([value, label]) => (
             <button type="button" data-range={value} aria-pressed={value === range ? 'true' : 'false'}>{label}</button>
           ))}
@@ -95,7 +116,23 @@ const boxKeys = spec.kind === 'bar';
               {s.name}
             </li>
           ))}
-          {spec.pool && (
+          {pickable.length > 0 && <li class="contents" data-picked></li>}
+          {pickable.length > 0 && (
+            <li>
+              <details class="picker" data-picker data-max={spec.picker!.max ?? 5}>
+                <summary class="add">+ Add {spec.picker!.label}</summary>
+                <div class="picker-pop">
+                  <input type="search" data-picker-search class="w-full rounded-md border border-line bg-surface px-2 py-1 text-sm text-ink" placeholder="Search" aria-label={`Search ${spec.picker!.label}`} />
+                  <ul class="mt-1 max-h-60 overflow-auto text-sm" role="listbox" aria-multiselectable="true">
+                    {pickable.map((k) => (
+                      <li><button type="button" role="option" aria-selected="false" data-pick={k} class="pick-opt">{k}</button></li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            </li>
+          )}
+          {spec.pool && !spec.picker && (
             <li class="flex items-center gap-1.5">
               <span class="key" style="--c:var(--series-2)" />
               <span data-selection-name>{hint ?? 'Click a bar below to compare'}</span>
@@ -106,10 +143,33 @@ const boxKeys = spec.kind === 'bar';
     </div>
   )}
 
-  <div class="relative mt-3" style={`height:${height}px`}>
+  <div class="relative mt-3" style={`height:${height}px`} data-plot>
     <div data-canvas class="absolute inset-0"></div>
     <div class="chart-skeleton" aria-hidden="true"></div>
+    {tabs.length > 0 && (
+      <div data-table-panel hidden class="absolute inset-0 overflow-auto rounded-lg border border-line">
+        <table class="tnum w-full text-left text-sm text-ink-2">
+          <thead class="sticky top-0 bg-surface-2 text-ink">
+            <tr>{heads.map((h) => <th class="px-3 py-1.5 font-medium">{h}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => <tr class="border-t border-line">{r.map((c) => <td class="px-3 py-1">{c}</td>)}</tr>)}
+          </tbody>
+        </table>
+      </div>
+    )}
   </div>
+  {timeline && (
+    <div class="timeline mt-2 flex items-center gap-3 text-xs text-ink-3" data-timeline data-hide-in="table map">
+      <span class="tnum w-16 shrink-0" data-tl-start>{tlLabel(spec.startIndex ?? 0)}</span>
+      <div class="tl-track relative h-6 flex-1">
+        <div class="tl-rail" aria-hidden="true"><div class="tl-fill" data-tl-fill></div></div>
+        <input type="range" min="0" max={n - 1} value={spec.startIndex ?? 0} step="1" data-tl="0" aria-label="Start of period" />
+        <input type="range" min="0" max={n - 1} value={n - 1} step="1" data-tl="1" aria-label="End of period" />
+      </div>
+      <span class="tnum w-16 shrink-0 text-right" data-tl-end>{tlLabel(n - 1)}</span>
+    </div>
+  )}
   <p data-selection class="sr-only" aria-live="polite"></p>
 
   {table && <footer class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-3">
@@ -128,7 +188,7 @@ const boxKeys = spec.kind === 'bar';
           <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6 10 10 6M7 4h5v5M12 9v3H4V4h3" /></svg>Share
         </a>
       )}
-    <details class="table-view">
+    {tabs.length === 0 && <details class="table-view">
       <summary class="cursor-pointer select-none hover:text-ink">View as table{py && <span> (<span data-table-caption>{py.years[py.yearIndex]}</span>)</span>}</summary>
       <div class="mt-2 max-h-72 overflow-auto rounded-lg border border-line">
         <table class="tnum w-full text-left text-sm text-ink-2">
@@ -140,7 +200,7 @@ const boxKeys = spec.kind === 'bar';
           </tbody>
         </table>
       </div>
-    </details>
+    </details>}
     </div>
   </footer>}
 </figure>
@@ -208,6 +268,122 @@ const boxKeys = spec.kind === 'bar';
     color: var(--ink);
     background: var(--surface-2);
   }
+  .seg button[role='tab'][aria-selected='true'] {
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .is-view-table [data-hide-in~='table'],
+  .is-view-map [data-hide-in~='map'] {
+    display: none;
+  }
+  .add {
+    list-style: none;
+    cursor: pointer;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px dashed var(--axis);
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+  .add::-webkit-details-marker { display: none; }
+  .add:hover { color: var(--ink); border-color: var(--ink-3); }
+  .picker { position: relative; }
+  .picker-pop {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 6px);
+    left: 0;
+    width: 260px;
+    padding: 8px;
+    border-radius: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  }
+  .pick-opt {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    text-align: left;
+    color: var(--ink-2);
+  }
+  .pick-opt:hover { background: var(--surface-2); color: var(--ink); }
+  .pick-opt::before {
+    content: '';
+    width: 14px;
+    height: 14px;
+    flex: none;
+    border-radius: 4px;
+    border: 1.5px solid var(--axis);
+  }
+  .pick-opt[aria-selected='true'] { color: var(--ink); font-weight: 600; }
+  .pick-opt[aria-selected='true']::before { background: var(--ink); border-color: var(--ink); }
+  .chip-x {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 4px 1px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  .chip-x button { padding: 0 4px; border-radius: 999px; color: var(--ink-3); }
+  .chip-x button:hover { color: var(--ink); background: var(--grid); }
+
+  /* Timeline: two range inputs share one rail. */
+  .tl-rail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 4px;
+    margin-top: -2px;
+    border-radius: 2px;
+    background: var(--surface-2);
+  }
+  .tl-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 2px;
+    background: var(--series-1);
+    opacity: 0.55;
+  }
+  .tl-track input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    margin: 0;
+    background: none;
+    pointer-events: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .tl-track input::-webkit-slider-thumb {
+    pointer-events: auto;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--series-1);
+    cursor: grab;
+  }
+  .tl-track input::-moz-range-thumb {
+    pointer-events: auto;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 2px solid var(--series-1);
+    cursor: grab;
+  }
+  .tl-track input::-moz-range-track { background: none; }
+  .tl-track input:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--ink); outline-offset: 2px; }
   .swatch {
     display: inline-block;
     width: 12px;

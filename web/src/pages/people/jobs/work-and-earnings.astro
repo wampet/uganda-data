@@ -146,7 +146,7 @@ const tiles = [
           subtitle="Public servants by group"
           height={340}
           source={sources.civil_service}
-          spec={{ kind: 'bar', stacked: true, unit: '', digits: 0, categories: civilService.years, series: Object.entries(civilService.groups).map(([g, v], i) => ({ name: groupName(g), data: v, color: i + 1 })), labelWidth: 50 }}
+          spec={{ kind: 'bar', stacked: true, relative: true, unit: '', digits: 0, categories: civilService.years, series: Object.entries(civilService.groups).map(([g, v], i) => ({ name: groupName(g), data: v, color: i + 1 })), labelWidth: 50 }}
         />
         <Chart
           id="wage-bill"
@@ -154,7 +154,7 @@ const tiles = [
           subtitle="Public-service pay, UGX billion a month (see notes on units)"
           height={340}
           source={sources.wage_bill}
-          spec={{ kind: 'bar', stacked: true, unit: ' bn', digits: 0, categories: wageBill.years, series: Object.entries(wageBill.groups).map(([g, v], i) => ({ name: groupName(g), data: v, color: i + 1 })), labelWidth: 50 }}
+          spec={{ kind: 'bar', stacked: true, relative: true, unit: ' bn', digits: 0, categories: wageBill.years, series: Object.entries(wageBill.groups).map(([g, v], i) => ({ name: groupName(g), data: v, color: i + 1 })), labelWidth: 50 }}
         />
         <Chart
           id="women-service"

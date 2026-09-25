@@ -113,7 +113,7 @@ const topOffences = offences.slice(0, 10);
         subtitle="Prisoners, convicted and on remand"
         height={380}
         source={sources.prison}
-        spec={{ kind: 'bar', stacked: true, unit: '', digits: 0, categories: prison.years, series: [
+        spec={{ kind: 'bar', stacked: true, relative: true, unit: '', digits: 0, categories: prison.years, series: [
           { name: 'Convicted', data: prison.convicted, color: 1 },
           { name: 'On remand (not yet tried)', data: prison.remand, color: 2 },
         ], labelWidth: 50 }}
@@ -135,7 +135,7 @@ const topOffences = offences.slice(0, 10);
         subtitle="Prisoners by offence, convicted and on remand"
         height={440}
         source={sources.offences}
-        spec={{ kind: 'bar', stacked: true, unit: '', digits: 0, categories: topOffences.map((o) => o.name), series: [
+        spec={{ kind: 'bar', stacked: true, relative: true, unit: '', digits: 0, categories: topOffences.map((o) => o.name), series: [
           { name: 'Convicted', data: topOffences.map((o) => o.convicts), color: 1 },
           { name: 'On remand', data: topOffences.map((o) => o.remand), color: 2 },
         ], labelWidth: 220 }}

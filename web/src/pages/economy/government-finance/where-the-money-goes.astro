@@ -151,7 +151,7 @@ const changes = byFunction
           subtitle="Central government tax revenue by type, UGX trillion"
           height={340}
           source={sources.history}
-          spec={{ kind: 'bar', stacked: true, unit: ' tn', digits: 1, categories: taxMix.years, series: Object.entries(taxMix.types).map(([k, v], i) => ({ name: k, data: v.map((x) => x / 1000), color: i + 1 })), labelWidth: 60 }}
+          spec={{ kind: 'bar', stacked: true, relative: true, unit: ' tn', digits: 1, categories: taxMix.years, series: Object.entries(taxMix.types).map(([k, v], i) => ({ name: k, data: v.map((x) => x / 1000), color: i + 1 })), labelWidth: 60 }}
         />
       </div>
     </section>

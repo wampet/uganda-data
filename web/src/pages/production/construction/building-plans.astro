@@ -50,7 +50,7 @@ const tiles = [
       subtitle="Plans submitted by type of building"
       height={340}
       source={B.sources.submitted}
-      spec={{ kind: 'bar', stacked: true, unit: '', digits: 0, categories: years, series: cats.map((c, i) => ({ name: c, data: B.submitted.categories[c].map((v) => v ?? 0), color: i + 1 })), labelWidth: 50 }}
+      spec={{ kind: 'bar', stacked: true, relative: true, unit: '', digits: 0, categories: years, series: cats.map((c, i) => ({ name: c, data: B.submitted.categories[c].map((v) => v ?? 0), color: i + 1 })), labelWidth: 50 }}
     />
   </section>
 

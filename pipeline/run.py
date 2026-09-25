@@ -11,7 +11,7 @@
 import sys
 from collections import Counter
 
-from ubos import catalog, export, livestock, price_indices, production, subcounties
+from ubos import catalog, export, livestock, price_indices, production, regions_geo, subcounties
 
 
 def main(argv: list[str]) -> None:
@@ -31,6 +31,7 @@ def main(argv: list[str]) -> None:
         production.build()
         price_indices.build()
         livestock.build()  # after export: uses the census districts it writes
+        regions_geo.build()  # after export: dissolves its district shapes
         subcounties.build()
     elif cmd == "production":
         production.build()

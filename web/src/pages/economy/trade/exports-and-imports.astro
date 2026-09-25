@@ -124,7 +124,7 @@ const m = (v: number) => Math.round(v);
           height={430}
           source={sources.export_products}
           hint="Click a product to show it here"
-          spec={{ kind: 'line', unit: '', digits: 0, x: annual.years, xNumeric: true, series: [{ name: 'Coffee', data: productPool['Coffee'] ?? [], color: 1 }], pool: productPool }}
+          spec={{ kind: 'line', unit: '', digits: 0, x: annual.years, xNumeric: true, series: [{ name: 'Coffee', data: productPool['Coffee'] ?? [], color: 1 }], pool: productPool, picker: { label: 'a product', max: 5 } }}
         />
       </div>
     </section>

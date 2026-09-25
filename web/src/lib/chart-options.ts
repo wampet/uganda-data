@@ -11,6 +11,41 @@ export interface ChartState {
   selected?: string;
   /** line: the comparison series currently shown */
   extra?: ChartSeries;
+  /** line: pool keys the reader added with the picker */
+  picked?: string[];
+  /** line: visible window, as [first, last] indices into spec.x */
+  window?: [number, number];
+  /** show each series as a share of the total */
+  relative?: boolean;
+}
+
+/** Series shown on a line chart: the spec's own, a linked comparison, then picked pool series. */
+export function lineSeries(spec: ChartSpec, state: ChartState = {}): ChartSeries[] {
+  const base = state.extra ? [...spec.series, state.extra] : [...spec.series];
+  const used = new Set(base.map((s) => s.color ?? 1));
+  const free = [1, 2, 3, 4, 5, 6, 7, 8].filter((n) => !used.has(n));
+  const shown = new Set(base.map((s) => s.name));
+  const picked = (state.picked ?? [])
+    .filter((k) => spec.pool?.[k] && !shown.has(k))
+    .map((k, i) => ({ name: k, data: spec.pool![k], color: free[i % Math.max(1, free.length)] ?? 1 }));
+  return [...base, ...picked];
+}
+
+/** The spec as shares of the total at each point (line) or of each bar (bar). */
+export function asShares(spec: ChartSpec): ChartSpec {
+  const n = spec.kind === 'line' ? (spec.x ?? []).length : (spec.categories ?? []).length;
+  const totals = Array.from({ length: n }, (_, i) => spec.series.reduce((sum, s) => sum + (s.data[i] ?? 0), 0));
+  return {
+    ...spec,
+    unit: '%',
+    digits: 1,
+    yMin: 0,
+    yMax: spec.kind === 'line' ? undefined : spec.stacked ? 100 : spec.yMax,
+    series: spec.series.map((s) => ({
+      ...s,
+      data: s.data.map((v, i) => (v == null || !totals[i] ? null : Math.round((1000 * v) / totals[i]) / 10)),
+    })),
+  };
 }
 
 export function createOptions(t: TokenLookup) {
@@ -67,10 +102,11 @@ export function createOptions(t: TokenLookup) {
     return String(v);
   }
 
-  function lineOption(spec: ChartSpec, extra?: ChartSeries) {
+  function lineOption(spec: ChartSpec, state: ChartState = {}) {
     const x = spec.x ?? [];
     const numeric = !!spec.xNumeric;
-    const series = extra ? [...spec.series, extra] : [...spec.series];
+    const series = lineSeries(spec, state);
+    const win = state.window;
     const colors = series.map((s) => slot(s.color ?? 1));
     const valueOf = (p: any) => (Array.isArray(p.value) ? p.value[1] : p.value);
     const xLabel = (v: string | number) => (numeric ? String(Math.round(Number(v))) : monthLabel(String(v)));
@@ -80,8 +116,9 @@ export function createOptions(t: TokenLookup) {
     const xNums = numeric ? x.map(Number) : [];
     const span = numeric ? Math.max(...xNums) - Math.min(...xNums) : 0;
     const step = span > 150 ? 50 : span > 60 ? 20 : span > 25 ? 10 : 5;
-    const xMin = numeric ? Math.floor(Math.min(...xNums) / step) * step : 0;
-    const xMax = numeric ? Math.ceil(Math.max(...xNums) / step) * step : 0;
+    // A reader-chosen window (timeline slider) shows exactly those years.
+    const xMin = numeric ? (win ? xNums[win[0]] : Math.floor(Math.min(...xNums) / step) * step) : 0;
+    const xMax = numeric ? (win ? xNums[win[1]] : Math.ceil(Math.max(...xNums) / step) * step) : 0;
 
     return {
       ...baseOption(),
@@ -102,13 +139,14 @@ export function createOptions(t: TokenLookup) {
       },
       dataZoom: numeric
         ? []
-        : [{ type: 'inside', startValue: spec.startIndex ?? 0, endValue: x.length - 1, zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false }],
+        : [{ type: 'inside', startValue: win ? win[0] : spec.startIndex ?? 0, endValue: win ? win[1] : x.length - 1, zoomOnMouseWheel: false, moveOnMouseMove: false, moveOnMouseWheel: false }],
       xAxis: numeric
         ? {
             type: 'value',
             min: xMin,
             max: xMax,
-            interval: step,
+            interval: win ? undefined : step,
+            minInterval: 1,
             splitLine: { show: false },
             axisLine: { show: true, lineStyle: { color: t('--axis') } },
             axisTick: { show: false },
@@ -482,7 +520,8 @@ export function createOptions(t: TokenLookup) {
     };
   }
 
-  function build(spec: ChartSpec, state: ChartState = {}) {
+  function build(input: ChartSpec, state: ChartState = {}) {
+    const spec = state.relative && input.relative ? asShares(input) : input;
     return spec.kind === 'map'
       ? mapOption(spec)
       : spec.kind === 'pyramid'
@@ -493,10 +532,10 @@ export function createOptions(t: TokenLookup) {
             : spec.series.length > 1
               ? groupedBarOption(spec)
               : barOption(spec, state.selected)
-          : lineOption(spec, state.extra);
+          : lineOption(spec, state);
   }
 
-  return { build, fmt };
+  return { build, fmt, label: monthLabel, series: lineSeries };
 }
 
 // ---- CSV export (same rows as the table view) ----------------------------------
@@ -509,9 +548,10 @@ const xLabel = (x: string | number, numeric?: boolean) => {
 };
 
 /** Rows (first row = header) of the data a chart currently shows, unrounded. */
-export function chartRows(spec: ChartSpec, state: ChartState = {}): (string | number | null)[][] {
+export function chartRows(input: ChartSpec, state: ChartState = {}): (string | number | null)[][] {
+  const spec = state.relative && input.relative ? asShares(input) : input;
   if (spec.kind === 'line') {
-    const series = state.extra ? [...spec.series, state.extra] : spec.series;
+    const series = lineSeries(spec, state);
     return [
       [spec.xNumeric ? 'Year' : 'Period', ...series.map((s) => s.name)],
       ...(spec.x ?? []).map((x, i) => [xLabel(x, spec.xNumeric), ...series.map((s) => s.data[i] ?? null)]),
