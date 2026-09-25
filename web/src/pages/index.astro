@@ -4,6 +4,8 @@ import Base from '../layouts/Base.astro';
 import DistrictSearch from '../components/DistrictSearch.astro';
 import Chart from '../components/Chart.astro';
 import Sparkline from '../components/Sparkline.astro';
+import RankStrip from '../components/RankStrip.astro';
+import * as W from '../lib/world';
 import * as D from '../lib/census';
 import { catalog, entriesFor, featured, fmtDate, fmtPct, monthLabel, sections, topicUrl } from '../lib/data';
 import * as C from '../lib/cpi';
@@ -99,6 +101,20 @@ const thenNow = [
   { label: 'Life expectancy at birth, years', unit: '', then: { when: String(P.life[0].year), v: P.life[0].total }, now: { when: String(last(P.life).year), v: last(P.life).total }, href: '/people/population/age-and-growth/' },
   { label: 'People, millions', unit: '', then: { when: String(P.history[0].year), v: +(P.history[0].total / 1e6).toFixed(1) }, now: { when: String(last(P.history).year), v: +(last(P.history).total / 1e6).toFixed(1) }, href: '/people/population/age-and-growth/' },
 ].map((t) => ({ ...t, max: Math.max(t.then.v, t.now.v) }));
+
+// Uganda and the world: three quick rankings against East Africa.
+const worldCards = ['gdp_growth', 'life_exp', 'electricity']
+  .map((id) => W.indicatorById.get(id)!)
+  .map((i) => ({ i, r: W.groupRanking(i, 'east-africa')! }))
+  .filter((x) => x.r && !x.r.stale)
+  .map(({ i, r }) => ({
+    i,
+    r,
+    points: [
+      ...r.members.map((m) => ({ name: m.name, value: m.value, year: m.year, text: W.fmt(i, m.value), kind: m.code === 'UGA' ? ('ug' as const) : ('other' as const) })),
+      ...r.averages.map((a) => ({ name: a.name, value: a.value, year: a.year, text: W.fmt(i, a.value), kind: 'avg' as const })),
+    ],
+  }));
 
 const gallery = sharedCharts.filter((c) => !c.slug.endsWith('-by-district')).slice(0, 6);
 
@@ -202,6 +218,29 @@ const gallery = sharedCharts.filter((c) => !c.slug.endsWith('-by-district')).sli
                   <span class="mt-1 block h-2 rounded-full bg-surface-2"><span class={`bar block h-2 rounded-full${r.now ? ' now' : ''}`} style={`width:${Math.max(2, (100 * r.v) / t.max)}%`} /></span>
                 </span>
               ))}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="mt-14" aria-labelledby="world-h">
+      <div class="flex items-baseline justify-between gap-3">
+        <h2 id="world-h" class="text-2xl font-semibold tracking-tight">How Uganda compares</h2>
+        <a href="/world/" class="text-sm text-ink-2 hover:text-ink">All comparisons →</a>
+      </div>
+      <p class="mt-1 text-ink-2">Uganda (<span class="font-semibold" style="color:var(--series-1)">●</span>) against its East African neighbours, from the World Bank, IMF and WHO.</p>
+      <ul class="mt-4 grid gap-4 md:grid-cols-3">
+        {worldCards.map(({ i, r, points }) => (
+          <li>
+            <a href={`/world/compare/?i=${i.id}&g=east-africa`} class="card group flex h-full flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+              <span class="flex items-baseline justify-between gap-3">
+                <span class="text-sm font-medium text-ink group-hover:underline">{i.label}</span>
+                <span class="text-xs text-ink-3">{r.ug.year}</span>
+              </span>
+              <span class="mt-1 text-3xl font-semibold tracking-tight">{W.fmt(i, r.ug.value)}</span>
+              <span class="text-sm text-ink-2">{r.rankText} in East Africa</span>
+              <span class="mt-3 block"><RankStrip points={points} label={`${i.label}, East Africa`} /></span>
             </a>
           </li>
         ))}

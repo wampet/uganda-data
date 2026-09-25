@@ -4,6 +4,7 @@
     python run.py build   [--refresh]   # catalog + parse + write web/src/data
     python run.py production            # Production section only (energy, industry, ...)
     python run.py indices               # house prices, construction costs, producer prices
+    python run.py world                 # World Bank, IMF and WHO comparisons (pipeline/intl)
     python run.py livestock             # Livestock Census by district (needs census.json)
     python run.py subcounties           # census 2024 for every sub-county (~6 min, needs census.json)
 """
@@ -11,6 +12,7 @@
 import sys
 from collections import Counter
 
+from intl import build as world
 from ubos import catalog, export, livestock, price_indices, production, regions_geo, subcounties
 
 
@@ -32,9 +34,12 @@ def main(argv: list[str]) -> None:
         price_indices.build()
         livestock.build()  # after export: uses the census districts it writes
         regions_geo.build()  # after export: dissolves its district shapes
+        world.build(refresh=refresh)
         subcounties.build()
     elif cmd == "production":
         production.build()
+    elif cmd == "world":
+        world.build(refresh=refresh)
     elif cmd == "indices":
         price_indices.build()
     elif cmd == "livestock":

@@ -1,0 +1,272 @@
+---
+// Compare explorer: any international measure over time, Uganda plus any
+// countries or averages the reader adds. The first measure is built into the
+// page; others load from /data/world/<id>.json when chosen. State lives in the
+// URL (?i=life_exp&c=KEN,TZA or &g=east-africa) so views can be shared.
+import Base from '../../layouts/Base.astro';
+import Chart from '../../components/Chart.astro';
+import { safeJson } from '../../lib/json';
+import { chartData, GROUP_IDS, groups, indicatorById, indicators, placeName, sources, topics } from '../../lib/world';
+
+const DEFAULT_ID = 'gdp_pc_ppp';
+const DEFAULT_GROUP = 'east-africa';
+const d = chartData(indicatorById.get(DEFAULT_ID)!);
+const groupNames = Object.fromEntries(GROUP_IDS.map((g) => [g, groups[g].places.filter((c) => c !== 'UGA').map((c) => placeName[c])]));
+const averages = ['Sub-Saharan Africa', 'Low-income countries', 'World'];
+const initialPicks = groupNames[DEFAULT_GROUP];
+const meta = Object.fromEntries(indicators.map((i) => [i.id, { label: i.label, note: i.note, topic: i.topic, source: sources[i.source].title }]));
+---
+
+<Base
+  title="Compare Uganda with other countries"
+  description="Pick any measure (income, growth, life expectancy, schooling, electricity, internet and more) and compare Uganda with its neighbours, Africa’s biggest economies and the world."
+>
+  <div class="mx-auto max-w-7xl px-4 sm:px-6">
+    <nav class="pt-6 text-sm text-ink-3" aria-label="Breadcrumb">
+      <a class="hover:text-ink" href="/world/">Uganda and the world</a><span class="px-1.5" aria-hidden="true">/</span><span>Compare</span>
+    </nav>
+
+    <div class="mt-4 grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <!-- Measures -->
+      <aside class="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-auto" aria-label="Measures">
+        <label class="lg:hidden">
+          <span class="text-sm text-ink-2">Measure</span>
+          <select id="measure-select" class="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2 text-ink">
+            {topics.map((t) => (
+              <optgroup label={t}>
+                {indicators.filter((i) => i.topic === t).map((i) => <option value={i.id} selected={i.id === DEFAULT_ID}>{i.label}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+        <div class="hidden lg:block">
+          <input id="measure-search" type="search" placeholder="Filter measures" aria-label="Filter measures" class="w-full rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink" />
+          {topics.map((t) => (
+            <div class="mt-4" data-topic>
+              <p class="px-2 text-xs font-medium uppercase tracking-wide text-ink-3">{t}</p>
+              <ul class="mt-1">
+                {indicators.filter((i) => i.topic === t).map((i) => (
+                  <li><button type="button" class="measure" data-measure={i.id} aria-current={i.id === DEFAULT_ID ? 'true' : 'false'}>{i.label}</button></li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <!-- Charts -->
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-brand-ink" id="m-topic">{meta[DEFAULT_ID].topic}</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl" id="m-label">{d.label}</h1>
+        <p class="mt-2 max-w-2xl text-ink-2" id="m-note">{d.note}</p>
+
+        <div class="mt-5 flex flex-wrap items-center gap-2" role="group" aria-label="Compare with">
+          <span class="mr-1 text-sm text-ink-3">Compare with</span>
+          {GROUP_IDS.map((g) => <button type="button" class="set" data-set={g} aria-pressed={g === DEFAULT_GROUP ? 'true' : 'false'}>{groups[g].label}</button>)}
+          <button type="button" class="set" data-set="averages" aria-pressed="false">Averages</button>
+          <button type="button" class="set set-quiet" data-set="none" aria-pressed="false">Uganda only</button>
+        </div>
+
+        <div class="mt-4">
+          <Chart
+            id="world-line"
+            title={d.label}
+            subtitle="Uganda and selected countries. Add or remove any below."
+            height={440}
+            source={d.source}
+            spec={{
+              kind: 'line', unit: d.unit, digits: d.digits, x: d.x, xNumeric: true,
+              series: [{ name: 'Uganda', data: d.uganda, color: 1 }],
+              pool: d.pool,
+              picker: { label: 'a country', max: 7, initial: initialPicks },
+              shadeFrom: d.projFrom ?? undefined,
+            }}
+          />
+        </div>
+        <div class="mt-4">
+          <Chart
+            id="world-rank"
+            title="Latest figures"
+            subtitle="Each country’s most recent actual year"
+            height={320}
+            source={d.source}
+            spec={{ kind: 'bar', unit: d.unit, digits: d.digits, categories: ['Uganda'], series: [{ name: d.label, data: [null] }], labelWidth: 150 }}
+          />
+        </div>
+        <p class="mt-3 text-sm text-ink-3" id="m-who" hidden>For WHO figures, “Sub-Saharan Africa” is WHO’s Africa region.</p>
+        <p class="mt-3 text-sm text-ink-3">
+          IMF figures from this year onwards are projections (shaded). Up to seven countries at a time keeps every line
+          readable. <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="/world/">See how Uganda ranks on every measure →</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</Base>
+
+<script type="application/json" id="world-state" set:html={safeJson({ first: d, meta, groupNames, averages, defaultId: DEFAULT_ID })} />
+
+<script>
+  type Data = {
+    id: string; label: string; note: string; unit: string; digits: number; x: number[];
+    uganda: (number | null)[]; pool: Record<string, (number | null)[]>; projFrom: number | null;
+    source: { title: string; url: string }; whoRegion: boolean;
+  };
+  const state = JSON.parse(document.getElementById('world-state')!.textContent!) as {
+    first: Data; meta: Record<string, { label: string; note: string; topic: string; source: string }>;
+    groupNames: Record<string, string[]>; averages: string[]; defaultId: string;
+  };
+  const $ = (id: string) => document.getElementById(id)!;
+  const line = $('world-line');
+  const rank = $('world-rank');
+  const cache = new Map<string, Data>([[state.first.id, state.first]]);
+  let current: Data = state.first;
+  let picked: string[] = state.groupNames['east-africa'];
+  // Line colours: Uganda is slot 1, picks take slots 2..8 in pick order (as the chart assigns them).
+  const colorOf = (name: string) => (name === 'Uganda' ? 1 : picked.indexOf(name) + 2);
+
+  function latestOf(vals: (number | null)[], d: Data) {
+    for (let k = d.x.length - 1; k >= 0; k--) {
+      if (d.projFrom != null && d.x[k] >= d.projFrom) continue;
+      if (vals[k] != null) return { v: vals[k]!, year: d.x[k] };
+    }
+    return null;
+  }
+
+  function drawRank() {
+    const d = current;
+    const rows = [['Uganda', d.uganda] as const, ...picked.map((n) => [n, d.pool[n] ?? []] as const)]
+      .map(([name, vals]) => ({ name, l: latestOf(vals as (number | null)[], d) }))
+      .filter((r): r is { name: string; l: { v: number; year: number } } => r.l != null)
+      .sort((a, b) => b.l.v - a.l.v);
+    const ugYear = rows.find((r) => r.name === 'Uganda')?.l.year;
+    rank.dispatchEvent(new CustomEvent('chart:update', { detail: {
+      unit: d.unit, digits: d.digits,
+      subtitle: ugYear ? `Most recent actual year: ${ugYear} for Uganda (others shown where different)` : 'Most recent actual year',
+      categories: rows.map((r) => (r.l.year !== ugYear ? `${r.name} (${r.l.year})` : r.name)),
+      categoryColors: rows.map((r) => colorOf(r.name)),
+      series: [{ name: d.label, data: rows.map((r) => r.l.v) }],
+    } }));
+  }
+
+  function syncUrl(id: string) {
+    const url = new URL(location.href);
+    url.searchParams.set('i', id);
+    url.searchParams.delete('g');
+    const codes = picked.map((n) => Object.entries(PLACE_CODES).find(([, v]) => v === n)?.[0]).filter(Boolean);
+    if (codes.length) url.searchParams.set('c', codes.join(','));
+    else url.searchParams.delete('c');
+    history.replaceState(null, '', url);
+  }
+  // Short codes for shareable URLs (names are the chart's pool keys).
+  const PLACE_CODES: Record<string, string> = {
+    KEN: 'Kenya', TZA: 'Tanzania', RWA: 'Rwanda', BDI: 'Burundi', SSD: 'South Sudan', COD: 'DR Congo', ETH: 'Ethiopia',
+    NGA: 'Nigeria', ZAF: 'South Africa', EGY: 'Egypt', GHA: 'Ghana', USA: 'United States', CHN: 'China', IND: 'India',
+    JPN: 'Japan', DEU: 'Germany', GBR: 'United Kingdom', BRA: 'Brazil', SSA: 'Sub-Saharan Africa', LIC: 'Low-income countries', WLD: 'World',
+  };
+
+  async function showMeasure(id: string) {
+    let d = cache.get(id);
+    if (!d) {
+      const res = await fetch(`/data/world/${id}.json`);
+      if (!res.ok) return;
+      d = (await res.json()) as Data;
+      cache.set(id, d);
+    }
+    current = d;
+    const m = state.meta[id];
+    $('m-topic').textContent = m.topic;
+    $('m-label').textContent = d.label;
+    $('m-note').textContent = d.note;
+    ($('m-who') as HTMLElement).hidden = !d.whoRegion;
+    document.title = `${d.label}: Uganda compared · Uganda in Data`;
+    line.dispatchEvent(new CustomEvent('chart:update', { detail: {
+      title: d.label, unit: d.unit, digits: d.digits, x: d.x,
+      series: [{ name: 'Uganda', data: d.uganda, color: 1 }], pool: d.pool, shadeFrom: d.projFrom ?? undefined,
+    } }));
+    for (const el of [line, rank]) {
+      const a = el.querySelector<HTMLAnchorElement>('footer a[rel="noopener"]');
+      if (a) { a.href = d.source.url; a.textContent = d.source.title; }
+      el.dataset.sourceTitle = d.source.title;
+      el.dataset.sourceUrl = d.source.url;
+    }
+    // Re-apply picks so the chart recomputes the new measure's lines, then the ranking follows.
+    line.dispatchEvent(new CustomEvent('chart:pick', { detail: picked }));
+    document.querySelectorAll<HTMLButtonElement>('[data-measure]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.measure === id)));
+    ($('measure-select') as HTMLSelectElement).value = id;
+    syncUrl(id);
+  }
+
+  line.addEventListener('chart:picked', (e) => {
+    picked = (e as CustomEvent).detail as string[];
+    const same = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+    document.querySelectorAll<HTMLButtonElement>('[data-set]').forEach((b) => {
+      const s = b.dataset.set!;
+      const names = s === 'none' ? [] : s === 'averages' ? state.averages : state.groupNames[s];
+      b.setAttribute('aria-pressed', String(same(names, picked)));
+    });
+    drawRank();
+    syncUrl(current.id);
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-set]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const s = b.dataset.set!;
+      const names = s === 'none' ? [] : s === 'averages' ? state.averages : state.groupNames[s];
+      line.dispatchEvent(new CustomEvent('chart:pick', { detail: names }));
+    }),
+  );
+  document.querySelectorAll<HTMLButtonElement>('[data-measure]').forEach((b) => b.addEventListener('click', () => showMeasure(b.dataset.measure!)));
+  ($('measure-select') as HTMLSelectElement).addEventListener('change', (e) => showMeasure((e.target as HTMLSelectElement).value));
+  ($('measure-search') as HTMLInputElement).addEventListener('input', (e) => {
+    const q = (e.target as HTMLInputElement).value.trim().toLowerCase();
+    document.querySelectorAll<HTMLElement>('[data-topic]').forEach((sec) => {
+      let any = false;
+      sec.querySelectorAll<HTMLButtonElement>('[data-measure]').forEach((b) => {
+        const hit = !q || b.textContent!.toLowerCase().includes(q);
+        b.parentElement!.hidden = !hit;
+        any ||= hit;
+      });
+      sec.hidden = !any;
+    });
+  });
+
+  // Initial state from the URL.
+  const params = new URL(location.href).searchParams;
+  const g = params.get('g');
+  const c = params.get('c');
+  if (g && state.groupNames[g]) picked = state.groupNames[g];
+  if (c) picked = c.split(',').map((code) => PLACE_CODES[code]).filter(Boolean);
+  const id = params.get('i');
+  if ((id && id !== state.defaultId && state.meta[id]) || g || c) showMeasure(id && state.meta[id] ? id : state.defaultId);
+  else drawRank();
+</script>
+
+<style>
+  .measure {
+    display: block;
+    width: 100%;
+    padding: 5px 8px;
+    border-radius: 8px;
+    text-align: left;
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+  .measure:hover { background: var(--surface-2); color: var(--ink); }
+  .measure[aria-current='true'] {
+    background: var(--surface-2);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--series-1);
+  }
+  .set {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 14px;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    transition: background 0.15s, color 0.15s;
+  }
+  .set:hover { color: var(--ink); background: var(--grid); }
+  .set[aria-pressed='true'] { background: var(--ink); color: var(--surface); font-weight: 600; }
+  .set-quiet { background: transparent; border: 1px solid var(--border); }
+</style>

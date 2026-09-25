@@ -4,6 +4,7 @@ import type { APIRoute } from 'astro';
 import { catalog, featured, sections, topicUrl } from '../lib/data';
 import { districts, mapIndicators, subregionByCode } from '../lib/census';
 import { sharedCharts } from '../lib/share-charts';
+import { indicators as worldIndicators } from '../lib/world';
 import cpiItems from '../data/indicators/cpi.json';
 
 type Row = [title: string, kind: string, url: string, extra: string];
@@ -38,6 +39,11 @@ export const GET: APIRoute = () => {
   add(['Compare two districts', 'Tool', '/places/districts/compare/', 'district comparison versus vs']);
   add(['Uganda, district by district', 'Tool', '/places/districts/', 'map districts census']);
   for (const i of mapIndicators) add([`${i.label}, by district`, 'Map', `/places/districts/?show=${i.id}`, `${i.question} ${i.group} map`]);
+
+  // International comparisons (World Bank, IMF, WHO).
+  add(['Uganda and the world', 'Story', '/world/', 'compare countries neighbours east africa kenya tanzania rwanda world bank imf who']);
+  add(['Compare Uganda with other countries', 'Tool', '/world/compare/', 'compare countries kenya tanzania rwanda china usa world']);
+  for (const i of worldIndicators) add([`${i.label}: Uganda vs other countries`, 'Compare', `/world/compare/?i=${i.id}`, `${i.topic} ${i.note} world kenya tanzania rwanda`]);
 
   // Individual price items in the CPI (~350), linking to their trend.
   const series = (cpiItems as unknown as { series: Record<string, { name: string; group: string }> }).series;

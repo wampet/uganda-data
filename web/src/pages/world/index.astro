@@ -1,0 +1,262 @@
+---
+// Uganda and the world: how Uganda ranks against three comparison groups on
+// ~30 World Bank, IMF and WHO measures. Every group's view is rendered at
+// build time; the switcher only shows one (works without JavaScript too).
+import Base from '../../layouts/Base.astro';
+import RankStrip, { type StripPoint } from '../../components/RankStrip.astro';
+import {
+  fmt, GROUP_IDS, groupRanking, groups, indicators, latest, PHRASE, placeName, sources, standouts, topics, type WorldIndicator,
+} from '../../lib/world';
+
+const WITHIN: Record<string, string> = { 'east-africa': 'in East Africa', africa: 'among Africa’s biggest economies', world: 'among the biggest economies' };
+
+const DEFAULT = 'east-africa';
+const cards = (topic: string) => indicators.filter((i) => i.topic === topic && latest(i, 'UGA'));
+
+function strip(i: WorldIndicator, g: string): { points: StripPoint[]; r: NonNullable<ReturnType<typeof groupRanking>> } | null {
+  const r = groupRanking(i, g);
+  if (!r) return null;
+  const points: StripPoint[] = [
+    ...r.members.map((m) => ({ name: m.name, value: m.value, year: m.year, text: fmt(i, m.value), kind: m.code === 'UGA' ? ('ug' as const) : ('other' as const) })),
+    ...r.averages.map((a) => ({ name: a.name, value: a.value, year: a.year, text: fmt(i, a.value), kind: 'avg' as const })),
+  ];
+  return { points, r };
+}
+
+const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+const lc = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+const leads = Object.fromEntries(GROUP_IDS.map((g) => [g, standouts(g)]));
+const lead = (g: string) => {
+  const s = leads[g];
+  const name = g === 'world' ? 'the world’s biggest economies' : g === 'africa' ? 'Africa’s biggest economies' : 'its East African neighbours';
+  // The two income measures say the same thing; name only the first that qualifies.
+  const pick = (xs: typeof s.leads, k: 0 | 1) =>
+    xs.map((x) => PHRASE[x.i.id]?.[k]).filter((p): p is string => !!p)
+      .filter((p, _, all) => !all.some((q) => q !== p && p.startsWith(q)))
+      .slice(0, 2);
+  const good = pick(s.leads, 0);
+  const bad = pick(s.lags, 1);
+  const parts = [
+    good.length ? `Uganda has ${list(good)} than most of ${name}` : '',
+    bad.length ? `${good.length ? 'but' : 'Uganda has'} ${list(bad)}` : '',
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(', ')}.` : `See how Uganda compares with ${name}.`;
+};
+const genLabel = (i: WorldIndicator) => (i.better === 'higher' ? 'Higher is better' : i.better === 'lower' ? 'Lower is better' : '');
+---
+
+<Base
+  title="Uganda and the world"
+  description="How Uganda compares with its East African neighbours, Africa’s biggest economies and the world’s: income, health, schooling, jobs, power and internet, from the World Bank, IMF and WHO."
+>
+  <div id="world" data-world-group={DEFAULT}>
+    <section class="hero border-b border-line">
+      <div class="mx-auto max-w-7xl px-4 pb-8 pt-10 sm:px-6 lg:pt-14">
+        <p class="text-sm font-medium text-brand-ink">Uganda and the world</p>
+        <h1 class="mt-2 max-w-3xl text-4xl font-semibold leading-[1.1] tracking-tight sm:text-5xl">How does Uganda compare?</h1>
+        {GROUP_IDS.map((g) => <p data-g={g} class="mt-4 max-w-2xl text-lg text-ink-2">{lead(g)}</p>)}
+
+        <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div class="groups" role="radiogroup" aria-label="Compare Uganda with">
+            {GROUP_IDS.map((g) => (
+              <button type="button" role="radio" data-group={g} aria-checked={g === DEFAULT ? 'true' : 'false'}>
+                {groups[g].label}
+              </button>
+            ))}
+          </div>
+          <ul class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-2" aria-label="Key">
+            <li class="flex items-center gap-1.5"><span class="dot ug" />Uganda</li>
+            <li class="flex items-center gap-1.5"><span class="dot other" />Other countries in the group</li>
+            <li class="flex items-center gap-1.5"><span class="tick" />Averages: sub-Saharan Africa, low-income countries, world</li>
+          </ul>
+        </div>
+        {GROUP_IDS.map((g) => (
+          <p data-g={g} class="mt-3 text-sm text-ink-3">
+            {groups[g].places.filter((c) => c !== 'UGA').length} countries: {groups[g].places.filter((c) => c !== 'UGA').map((c) => placeName[c]).join(', ')}.
+          </p>
+        ))}
+      </div>
+    </section>
+
+    <div class="mx-auto max-w-7xl px-4 sm:px-6">
+      {GROUP_IDS.map((g) => (
+        <section data-g={g} class="mt-8 grid gap-4 md:grid-cols-2" aria-label="Where Uganda stands out">
+          {[
+            { title: 'Where Uganda does best', items: leads[g].leads },
+            { title: 'Where Uganda lags', items: leads[g].lags },
+          ].map((box) => (
+            <div class="card p-5">
+              <h2 class="text-sm font-medium uppercase tracking-wide text-ink-3">{box.title}</h2>
+              {box.items.length ? (
+                <ul class="mt-3 space-y-2">
+                  {box.items.map(({ i, r }) => (
+                    <li>
+                      <a href={`/world/compare/?i=${i.id}&g=${g}`} class="flex items-baseline justify-between gap-3 rounded-lg px-2 py-1 hover:bg-surface-2">
+                        <span class="text-ink">{i.label}</span>
+                        <span class="shrink-0 text-sm text-ink-2"><span class="tnum font-semibold text-ink">{fmt(i, r.ug.value)}</span> · {lc(r.rankText)}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p class="mt-3 text-ink-2">No measure puts Uganda at this end of the group.</p>}
+            </div>
+          ))}
+        </section>
+      ))}
+
+      <nav class="topic-nav sticky top-14 z-30 -mx-4 mt-10 border-b border-line bg-page/90 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6" aria-label="Topics">
+        <ul class="flex gap-1 overflow-x-auto">
+          {topics.map((t) => <li><a href={`#${t.toLowerCase().replace(/[^a-z]+/g, '-')}`} class="chip">{t}</a></li>)}
+          <li class="ml-auto"><a href="/world/compare/" class="chip chip-strong">Open the explorer →</a></li>
+        </ul>
+      </nav>
+
+      {topics.map((t) => (
+        <section id={t.toLowerCase().replace(/[^a-z]+/g, '-')} class="scroll-mt-28 pt-10">
+          <h2 class="text-2xl font-semibold tracking-tight">{t}</h2>
+          <ul class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {cards(t).map((i) => {
+              const ug = latest(i, 'UGA')!;
+              return (
+                <li>
+                  <a href={`/world/compare/?i=${i.id}`} data-compare={i.id} class="card group flex h-full flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-lg">
+                    <span class="flex items-baseline justify-between gap-3">
+                      <span class="text-sm font-medium text-ink group-hover:underline">{i.label}</span>
+                      <span class="shrink-0 text-xs text-ink-3">{ug.year}</span>
+                    </span>
+                    <span class="mt-1 text-3xl font-semibold tracking-tight">{fmt(i, ug.value)}</span>
+                    {GROUP_IDS.map((g) => {
+                      const s = strip(i, g);
+                      return (
+                        <span data-g={g} class="mt-1 block">
+                          {s && !s.r.stale ? (
+                            <>
+                              <span class="block text-sm text-ink-2">{s.r.rankText} {WITHIN[g]}{genLabel(i) && <span class="text-ink-3"> · {genLabel(i).toLowerCase()}</span>}</span>
+                              <span class="mt-3 block"><RankStrip points={s.points} label={`${i.label}, ${groups[g].label}`} /></span>
+                            </>
+                          ) : (
+                            <span class="block text-sm text-ink-3">Uganda’s latest figure is from {ug.year}, too old to rank against today’s.</span>
+                          )}
+                        </span>
+                      );
+                    })}
+                    <span class="mt-auto pt-3 text-xs text-ink-3">{sources[i.source].title.split(',')[0]}</span>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+
+      <section class="mt-14 grid gap-4 text-sm text-ink-2 md:grid-cols-2">
+        <div class="card p-5">
+          <h2 class="text-lg font-semibold text-ink">About these comparisons</h2>
+          <p class="mt-2">
+            These figures come from international organisations, so countries are measured the same way. For Uganda itself,
+            UBOS is the official source, and some numbers differ: the World Bank’s poverty line ($3 a day) is not UBOS’s
+            national poverty line, for example.
+          </p>
+          <p class="mt-2">
+            Each country is compared on its latest available year (shown when you hover), within five years of Uganda’s.
+            IMF figures for this year onwards are projections and are not used in rankings. For WHO figures, the Africa
+            average is WHO’s Africa region.
+          </p>
+        </div>
+        <div class="card p-5">
+          <h2 class="text-lg font-semibold text-ink">Sources</h2>
+          <ul class="mt-2 space-y-1">
+            {Object.values(sources).map((s) => (
+              <li><a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={s.url} rel="noopener">{s.title}</a> <span class="text-ink-3">({s.license})</span></li>
+            ))}
+          </ul>
+          <p class="mt-2 text-ink-3">The Bank of Uganda publishes its own figures through its <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href="https://www.bou.or.ug/statistical_portal" rel="noopener">data portal</a>.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</Base>
+
+<script>
+  const root = document.getElementById('world')!;
+  const buttons = document.querySelectorAll<HTMLButtonElement>('[data-group]');
+  function setGroup(g: string, push = true) {
+    if (![...buttons].some((b) => b.dataset.group === g)) return;
+    root.dataset.worldGroup = g;
+    buttons.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.group === g)));
+    document.querySelectorAll<HTMLAnchorElement>('[data-compare]').forEach((a) => (a.href = `/world/compare/?i=${a.dataset.compare}&g=${g}`));
+    if (push) {
+      const url = new URL(location.href);
+      url.searchParams.set('g', g);
+      history.replaceState(null, '', url);
+    }
+  }
+  buttons.forEach((b) => b.addEventListener('click', () => setGroup(b.dataset.group!)));
+  setGroup(new URL(location.href).searchParams.get('g') ?? root.dataset.worldGroup!, false);
+
+</script>
+
+<style>
+  .hero {
+    background:
+      radial-gradient(1200px 300px at 10% -10%, color-mix(in oklab, var(--series-1) 10%, transparent), transparent 70%),
+      radial-gradient(900px 260px at 95% 0%, color-mix(in oklab, var(--brand) 12%, transparent), transparent 70%);
+  }
+  /* Show only the selected comparison group. */
+  #world [data-g] { display: none; }
+  #world[data-world-group='east-africa'] [data-g='east-africa'],
+  #world[data-world-group='africa'] [data-g='africa'],
+  #world[data-world-group='world'] [data-g='world'] { display: block; }
+  #world section[data-g] { display: none; }
+  #world[data-world-group='east-africa'] section[data-g='east-africa'],
+  #world[data-world-group='africa'] section[data-g='africa'],
+  #world[data-world-group='world'] section[data-g='world'] { display: grid; }
+
+  .groups {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: 12px;
+    background: var(--surface-2);
+  }
+  .groups button {
+    padding: 7px 14px;
+    border-radius: 9px;
+    font-size: 15px;
+    color: var(--ink-2);
+    transition: background 0.15s, color 0.15s;
+  }
+  .groups button:hover { color: var(--ink); }
+  .groups button[aria-checked='true'] {
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  .dot {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+  .dot.ug { background: var(--series-1); }
+  .dot.other { background: var(--muted-series); }
+  .tick {
+    display: inline-block;
+    width: 2px;
+    height: 14px;
+    border-radius: 1px;
+    background: var(--ink-3);
+  }
+  .chip {
+    display: inline-flex;
+    white-space: nowrap;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 14px;
+    background: var(--surface-2);
+    color: var(--ink-2);
+  }
+  .chip:hover { background: var(--grid); color: var(--ink); }
+  .chip-strong { background: var(--ink); color: var(--surface); font-weight: 600; }
+  .chip-strong:hover { background: var(--ink); color: var(--surface); opacity: 0.9; }
+</style>

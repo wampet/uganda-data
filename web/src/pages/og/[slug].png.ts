@@ -1,6 +1,7 @@
 // Link-preview images (1200x630 PNG) for shareable charts, rendered at build
 // time: ECharts draws the chart to SVG server-side using the same option
 // builders as the browser, resvg turns the composed card into a PNG.
+import { credit } from '../../lib/credit';
 import type { APIRoute, GetStaticPaths } from 'astro';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -123,7 +124,7 @@ export const GET: APIRoute = ({ params }) => {
   ${legend}
   ${inner}
   <line x1="${PAD}" y1="${H - footerH}" x2="${W - PAD}" y2="${H - footerH}" stroke="${t('--grid')}" stroke-width="1"/>
-  <text x="${PAD}" y="${H - 20}" font-size="20" fill="${t('--ink-3')}">${esc(wrap(`Source: UBOS, ${c.source.title}`, 72, 1)[0])}</text>
+  <text x="${PAD}" y="${H - 20}" font-size="20" fill="${t('--ink-3')}">${esc(wrap(`Source: ${credit(c.source.title)}`, 72, 1)[0])}</text>
   <text x="${W - PAD}" y="${H - 20}" font-size="22" font-weight="700" text-anchor="end" fill="${t('--ink')}">Uganda in Data</text>
 </svg>`;
 

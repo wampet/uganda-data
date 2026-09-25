@@ -21,7 +21,7 @@ import requests  # noqa: E402  (must import after truststore injection)
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / "cache"
-USER_AGENT = "uganda-data/0.1 (open-data visualisation project)"
+USER_AGENT = "uganda-data/0.1 (+https://github.com/wampet/uganda-data; open-data visualisation project)"
 
 _session = requests.Session()
 _session.headers["User-Agent"] = USER_AGENT

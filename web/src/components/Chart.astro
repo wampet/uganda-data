@@ -3,6 +3,7 @@
 // server-rendered HTML (instant, indexable, readable without JS); the plot
 // itself hydrates lazily via scripts/charts.ts.
 import { safeJson } from '../lib/json';
+import { credit } from '../lib/credit';
 import type { ChartSpec } from '../lib/chart-spec';
 import { monthLabel } from '../lib/data';
 import { sharedBySlug } from '../lib/share-charts';
@@ -174,7 +175,7 @@ const tlLabel = (i: number) => (xs.length ? (spec.xNumeric ? String(xs[i]) : mon
 
   {table && <footer class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-3">
     {source ? (
-      <span>Source: <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={source.url} rel="noopener">UBOS, {source.title}</a></span>
+      <span>Source: <a class="underline decoration-dotted underline-offset-2 hover:text-ink" href={source.url} rel="noopener">{credit(source.title)}</a></span>
     ) : <span />}
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
       <button type="button" data-download="csv" class="dl" title="Download the data as a spreadsheet (CSV)">

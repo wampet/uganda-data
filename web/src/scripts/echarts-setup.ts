@@ -5,6 +5,7 @@ import { BarChart, LineChart, MapChart } from 'echarts/charts';
 import {
   DataZoomInsideComponent,
   GridComponent,
+  MarkAreaComponent,
   MarkLineComponent,
   TooltipComponent,
   VisualMapPiecewiseComponent,
@@ -18,6 +19,7 @@ echarts.use([
   GridComponent,
   TooltipComponent,
   DataZoomInsideComponent,
+  MarkAreaComponent,
   MarkLineComponent,
   VisualMapPiecewiseComponent,
   SVGRenderer,

@@ -1,0 +1,133 @@
+---
+// A one-line dot plot: every country in a comparison group on one axis, Uganda
+// in the lead colour, averages as thin ticks. Server-rendered SVG (no chart
+// library). One shared tooltip, created on first hover, serves every strip.
+export interface StripPoint { name: string; value: number; text: string; year: number; kind: 'ug' | 'other' | 'avg' }
+interface Props { points: StripPoint[]; label: string }
+
+const { points, label } = Astro.props;
+const W = 320, PAD = 16, AXIS = 36;
+const vals = points.map((p) => p.value);
+const lo = Math.min(...vals), hi = Math.max(...vals);
+// Values spanning more than 50x (population, income) read better on a log scale.
+const log = lo > 0 && hi / lo > 50;
+const f = (v: number) => (log ? Math.log10(v) : v);
+const span = f(hi) - f(lo) || 1;
+const x = (v: number) => PAD + ((f(v) - f(lo)) / span) * (W - 2 * PAD);
+
+const others = points.filter((p) => p.kind === 'other');
+const avgs = points.filter((p) => p.kind === 'avg');
+const ug = points.find((p) => p.kind === 'ug')!;
+const byValue = [...points.filter((p) => p.kind !== 'avg')].sort((a, b) => a.value - b.value);
+const lowP = byValue[0];
+const highP = byValue[byValue.length - 1];
+const ugX = x(ug.value);
+const anchor = ugX < 60 ? 'start' : ugX > W - 60 ? 'end' : 'middle';
+const tip = (p: StripPoint) => `${p.name}: ${p.text}${p.year ? ` (${p.year})` : ''}`;
+const summary = `${label}. ${[...points].sort((a, b) => b.value - a.value).map(tip).join('; ')}.`;
+---
+
+<svg viewBox={`0 0 ${W} 66`} class="strip" role="img" aria-label={summary}>
+  <line x1={PAD} x2={W - PAD} y1={AXIS} y2={AXIS} class="axis" />
+  {avgs.map((p) => (
+    <g data-tip={tip(p)} class="hit">
+      <rect x={x(p.value) - 6} y={AXIS - 14} width="12" height="28" fill="transparent" />
+      <line x1={x(p.value)} x2={x(p.value)} y1={AXIS - 9} y2={AXIS + 9} class="avg" />
+    </g>
+  ))}
+  {others.map((p) => (
+    <g data-tip={tip(p)} class="hit">
+      <circle cx={x(p.value)} cy={AXIS} r="12" fill="transparent" />
+      <circle cx={x(p.value)} cy={AXIS} r="5.5" class="other" />
+    </g>
+  ))}
+  <g data-tip={tip(ug)} class="hit">
+    <circle cx={ugX} cy={AXIS} r="14" fill="transparent" />
+    <circle cx={ugX} cy={AXIS} r="7.5" class="ug" />
+  </g>
+  <text x={ugX} y={AXIS - 15} text-anchor={anchor} class="ug-label">Uganda</text>
+  {lowP.kind !== 'ug' && <text x={PAD} y="62" class="end">{lowP.name}</text>}
+  {highP.kind !== 'ug' && <text x={W - PAD} y="62" text-anchor="end" class="end">{highP.name}</text>}
+  {log && <text x={W / 2} y="62" text-anchor="middle" class="end">log scale</text>}
+</svg>
+
+<script>
+  let tip: HTMLDivElement | null = null;
+  document.addEventListener('pointerover', (e) => {
+    const t = (e.target as Element).closest?.('svg.strip [data-tip]');
+    if (!t) return;
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.className = 'strip-tip';
+      tip.setAttribute('role', 'tooltip');
+      document.body.appendChild(tip);
+    }
+    tip.textContent = t.getAttribute('data-tip');
+    tip.hidden = false;
+    const r = t.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    tip.style.left = `${Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2))}px`;
+    tip.style.top = `${r.top - tip.offsetHeight - 8}px`;
+  });
+  document.addEventListener('pointerout', (e) => {
+    if (tip && (e.target as Element).closest?.('svg.strip [data-tip]')) tip.hidden = true;
+  });
+  window.addEventListener('scroll', () => tip && (tip.hidden = true), { passive: true });
+</script>
+
+<style>
+  :global(.strip-tip) {
+    position: fixed;
+    z-index: 70;
+    pointer-events: none;
+    padding: 5px 9px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    white-space: nowrap;
+  }
+  .strip {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .axis {
+    stroke: var(--grid);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .avg {
+    stroke: var(--ink-3);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .other {
+    fill: var(--muted-series);
+    stroke: var(--surface);
+    stroke-width: 2;
+  }
+  .ug {
+    fill: var(--series-1);
+    stroke: var(--surface);
+    stroke-width: 2;
+  }
+  .ug-label {
+    font-size: 11px;
+    font-weight: 600;
+    fill: var(--ink);
+  }
+  .end {
+    font-size: 10px;
+    fill: var(--ink-3);
+  }
+  .hit {
+    cursor: default;
+  }
+  .hit:hover .other {
+    fill: var(--ink-3);
+  }
+</style>

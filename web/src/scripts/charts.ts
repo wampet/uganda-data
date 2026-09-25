@@ -9,6 +9,7 @@
 //   Count | Share toggle, an "Add" picker for more lines, a timeline slider.
 import type { ChartSeries, ChartSpec } from '../lib/chart-spec';
 import { chartRows, createOptions, toCsv, type ChartState } from '../lib/chart-options';
+import { credit } from '../lib/credit';
 
 type EChartsType = import('echarts/core').EChartsType;
 
@@ -209,7 +210,7 @@ function meta(el: HTMLElement) {
   return {
     title: el.querySelector('[data-title]')?.textContent?.trim() || 'Chart',
     subtitle: el.querySelector('[data-subtitle]')?.textContent?.trim() || '',
-    source: el.dataset.sourceTitle ? `Source: UBOS, ${el.dataset.sourceTitle}` : 'Source: Uganda Bureau of Statistics',
+    source: el.dataset.sourceTitle ? `Source: ${credit(el.dataset.sourceTitle)}` : 'Source: Uganda Bureau of Statistics',
     sourceUrl: el.dataset.sourceUrl ?? '',
   };
 }
@@ -381,6 +382,7 @@ async function togglePick(el: HTMLElement, name: string) {
   render(el);
   renderTable(el);
   syncPicked(el);
+  el.dispatchEvent(new CustomEvent('chart:picked', { detail: entry.picked }));
   const live = el.querySelector('[data-selection]');
   if (live) live.textContent = entry.picked.length ? `Showing ${entry.picked.join(', ')}` : '';
 }
@@ -447,6 +449,17 @@ function init() {
     // Other widgets on the page (e.g. an item picker) can add a comparison series.
     el.addEventListener('chart:select', (e) => select(el, (e as CustomEvent).detail));
     el.addEventListener('chart:update', (e) => update(el, (e as CustomEvent).detail));
+    // Replace the picked lines from outside (e.g. "add all of East Africa" buttons, URL state).
+    el.addEventListener('chart:pick', async (e) => {
+      await mount(el);
+      const entry = instances.get(el)!;
+      const max = Number(el.querySelector<HTMLElement>('[data-picker]')?.dataset.max ?? 5);
+      entry.picked = ((e as CustomEvent).detail as string[]).filter((k) => entry.spec.pool?.[k]).slice(0, max);
+      render(el);
+      renderTable(el);
+      syncPicked(el);
+      el.dispatchEvent(new CustomEvent('chart:picked', { detail: entry.picked }));
+    });
   });
 
   document.addEventListener('keydown', (e) => {

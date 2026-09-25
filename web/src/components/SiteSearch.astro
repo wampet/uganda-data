@@ -31,7 +31,7 @@
 <script>
   type Row = [string, string, string, string];
   // Stories and tools first; UBOS's own files last (there are many of them).
-  const KIND_RANK: Record<string, number> = { Story: 0, Tool: 1, District: 2, Map: 3, Chart: 4, 'Item price': 5, Topic: 6, Section: 7, 'UBOS table': 8, 'UBOS report': 9 };
+  const KIND_RANK: Record<string, number> = { Story: 0, Tool: 1, District: 2, Map: 3, Compare: 3, Chart: 4, 'Item price': 5, Topic: 6, Section: 7, 'UBOS table': 8, 'UBOS report': 9 };
 
   const dialog = document.querySelector<HTMLDialogElement>('[data-search]')!;
   const input = dialog.querySelector<HTMLInputElement>('[data-search-input]')!;

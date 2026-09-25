@@ -75,6 +75,10 @@ export interface ChartSpec {
   picker?: { label: string; max?: number; initial?: string[] };
   /** series are parts of one whole: offer a Count | Share toggle (share = % of the total at each point) */
   relative?: boolean;
+  /** bar (single series): palette slot per category, so bars keep each entity's line colour */
+  categoryColors?: (number | 'muted')[];
+  /** line: shade x >= this value as projections (e.g. IMF forecasts) */
+  shadeFrom?: string | number;
   /** an extra Map tab showing the same measure by area (same unit and digits) */
   mapView?: MapSpec;
   /** line/bar series; unused for maps */

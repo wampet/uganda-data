@@ -181,6 +181,15 @@ export function createOptions(t: TokenLookup) {
         areaStyle: i === 0 && spec.area ? { color: colors[i], opacity: 0.1 } : undefined,
         emphasis: { disabled: true },
         z: s.points ? 3 : 2,
+        markArea:
+          i === 0 && spec.shadeFrom != null
+            ? {
+                silent: true,
+                itemStyle: { color: t('--surface-2'), opacity: 0.9 },
+                label: { show: true, position: 'insideTop', color: t('--ink-3'), fontSize: 11, formatter: 'Projection' },
+                data: [[{ xAxis: numeric ? Number(spec.shadeFrom) : String(spec.shadeFrom) }, { xAxis: numeric ? xMax : x[x.length - 1] }]],
+              }
+            : undefined,
         markLine:
           i === 0 && spec.zeroLine
             ? { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: t('--axis'), type: 'solid', width: 1 }, data: [{ yAxis: 0 }] }
@@ -397,7 +406,9 @@ export function createOptions(t: TokenLookup) {
           data: data.map((v, i) => ({
             value: v,
             itemStyle: {
-              color: cats[i] === selected || spec.highlight?.includes(cats[i]) ? pick : base,
+              color: spec.categoryColors?.[i] != null
+                ? slot(spec.categoryColors[i])
+                : cats[i] === selected || spec.highlight?.includes(cats[i]) ? pick : base,
               borderRadius: (v ?? 0) >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4],
             },
           })),
