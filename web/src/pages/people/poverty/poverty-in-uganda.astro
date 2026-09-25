@@ -5,6 +5,7 @@ import Chart from '../../../components/Chart.astro';
 import {
   blanket, byRegion, byResidence, dynamics, facts, latestPoor, latestRate, latestYear, meals, national, poorMillions,
   nationalSource, regionsLatest, rowOf, shoes, sources,
+  clothes, covid, extraFacts, foodNational,
 } from '../../../lib/poverty';
 
 const allFacts = facts();
@@ -26,6 +27,8 @@ const L = <T,>(a: T[]) => a[a.length - 1];
 const regionNames = ['Kampala', 'Central', 'Western', 'Eastern', 'Northern'];
 const shoesRegions = regionNames.map((n) => ({ n, v: L(rowOf(shoes, n, 'Region').values) }));
 const blanketRegions = regionNames.map((n) => ({ n, v: L(rowOf(blanket, n, 'Region').values) }));
+const clothesRegions = regionNames.map((n) => ({ n, v: L(rowOf(clothes, n, 'Region').values) }));
+const covidSub = [...covid.subregions].sort((a, b) => b.during - a.during);
 const mealRegions = meals.filter((m) => m.label !== 'Uganda').sort((a, b) => b['6-17 years'] - a['6-17 years']);
 
 const tiles = [
@@ -145,7 +148,7 @@ const tiles = [
 
     <section class="mt-12">
       <h2 class="text-2xl font-semibold tracking-tight">What poverty looks like day to day</h2>
-      <div class="mt-4 grid gap-4 lg:grid-cols-3">
+      <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Chart
           id="shoes"
           title="Shoes for household members"
@@ -163,6 +166,14 @@ const tiles = [
           spec={{ kind: 'bar', unit: '%', categories: blanketRegions.map((r) => r.n), series: [{ name: '% of households', data: blanketRegions.map((r) => r.v) }], labelWidth: 80 }}
         />
         <Chart
+          id="clothes"
+          title="Two sets of clothes"
+          subtitle={`% of households where every member has at least two, ${L(clothes.years)}`}
+          height={260}
+          source={sources.clothes}
+          spec={{ kind: 'bar', unit: '%', categories: clothesRegions.map((r) => r.n), series: [{ name: '% of households', data: clothesRegions.map((r) => r.v) }], labelWidth: 80 }}
+        />
+        <Chart
           id="meals"
           title="Children eating one meal a day"
           subtitle="% of children aged 6–17, 2023/24"
@@ -171,6 +182,44 @@ const tiles = [
           spec={{ kind: 'bar', unit: '%', categories: mealRegions.map((m) => m.label), series: [{ name: '% of children 6–17', data: mealRegions.map((m) => m['6-17 years']) }], labelWidth: 80 }}
         />
       </div>
+    </section>
+
+
+    <section class="mt-12">
+      <h2 class="text-2xl font-semibold tracking-tight">COVID-19 and where food comes from</h2>
+      <ul class="mt-3 max-w-3xl list-disc space-y-1 pl-5 text-ink-2">
+        {extraFacts().slice(0, 2).map((f) => <li>{f}</li>)}
+      </ul>
+      <div class="mt-5 grid gap-4 lg:grid-cols-2">
+        <Chart
+          id="covid"
+          share="uganda-poverty-covid"
+          title="Poverty before and during COVID-19"
+          subtitle="% of people below the poverty line, by sub-region (survey estimates, see notes)"
+          height={440}
+          source={sources.covid_subregion}
+          spec={{ kind: 'bar', unit: '%', digits: 1, categories: covidSub.map((x) => x.name), series: [
+            { name: 'Before COVID-19', data: covidSub.map((x) => x.before), color: 'muted' },
+            { name: 'During COVID-19', data: covidSub.map((x) => x.during), color: 2 },
+          ], labelWidth: 110 }}
+        />
+        <Chart
+          id="food-source"
+          title="More food is bought, less is grown"
+          subtitle="Share of household food by source, %"
+          height={440}
+          source={sources.food}
+          spec={{ kind: 'bar', stacked: true, unit: '%', digits: 0, yMax: 100, categories: foodNational.map((f) => f.year), series: [
+            { name: 'Bought', data: foodNational.map((f) => f.market), color: 1 },
+            { name: 'Own farm', data: foodNational.map((f) => f['own production']), color: 3 },
+            { name: 'Gifts', data: foodNational.map((f) => f.gift), color: 4 },
+          ], labelWidth: 60 }}
+        />
+      </div>
+      <p class="mt-3 text-sm text-ink-3">
+        Sub-region estimates come from a small panel survey and can move a lot between rounds (for example Elgon and Tooro),
+        so read single sub-regions with care. The rural and urban figures are more reliable.
+      </p>
     </section>
 
     <section class="mt-10 grid gap-4 md:grid-cols-2">

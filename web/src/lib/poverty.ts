@@ -5,7 +5,7 @@ interface Src { title: string; url: string; updated: string | null }
 interface Row { name: string; values: (number | null)[]; group?: string | null }
 
 const raw = povJson as unknown as {
-  sources: Record<'headcount' | 'long' | 'absolute' | 'dynamics' | 'shoes' | 'blanket' | 'meals', Src>;
+  sources: Record<'headcount' | 'long' | 'absolute' | 'dynamics' | 'shoes' | 'blanket' | 'clothes' | 'meals' | 'covid_residence' | 'covid_subregion' | 'food', Src>;
   national: { years: string[]; rate: number[] };
   poor_millions: { years: string[]; values: number[] };
   by_region: { years: string[]; rows: Row[] };
@@ -13,6 +13,9 @@ const raw = povJson as unknown as {
   dynamics: { columns: string[]; rows: Row[]; period: string };
   shoes: { years: string[]; rows: Row[] };
   blanket: { years: string[]; rows: Row[] };
+  clothes: { years: string[]; rows: Row[] };
+  covid: { residence: Record<'Urban' | 'Rural', { before: number; during: number }>; subregions: { name: string; before: number; during: number }[] };
+  food_source: { years: string[]; rows: { name: string; years: Record<string, { market: number; 'own production': number; gift: number }> }[] };
   one_meal_2023_24: { label: string; '0-5 years': number; '6-17 years': number; '18+ years': number }[];
 };
 
@@ -30,6 +33,14 @@ export const dynamics = raw.dynamics;
 export const shoes = raw.shoes;
 export const blanket = raw.blanket;
 export const meals = raw.one_meal_2023_24;
+export const clothes = raw.clothes;
+export const covid = raw.covid;
+export const foodSource = raw.food_source;
+/** National food shares by survey (market, own production, gift). */
+export const foodNational = (() => {
+  const u = foodSource.rows.find((r) => r.name === 'Uganda')!;
+  return foodSource.years.map((y) => ({ year: y, ...u.years[y] }));
+})();
 
 const last = <T,>(a: T[]) => a[a.length - 1];
 export const latestYear = last(national.years);
@@ -47,6 +58,17 @@ export const regionsLatest = byRegion.rows
 
 export const rowOf = (t: { rows: Row[] }, name: string, group?: string) =>
   t.rows.find((r) => r.name === name && (!group || r.group === group))!;
+
+export function extraFacts() {
+  const f0 = foodNational[0], f1 = foodNational[foodNational.length - 1];
+  const r = covid.residence;
+  const cl = rowOf(clothes, 'Uganda')!;
+  return [
+    `During COVID-19, poverty in rural areas rose from ${r.Rural.before}% to ${r.Rural.during}%, while in towns it barely moved (${r.Urban.before}% to ${r.Urban.during}%).`,
+    `Ugandan households bought ${Math.round(f1.market)}% of their food in ${f1.year}, up from ${Math.round(f0.market)}% in ${f0.year}; food from their own farms fell from ${Math.round(f0['own production'])}% to ${Math.round(f1['own production'])}%.`,
+    `${cl.values[cl.values.length - 1]}% of households had at least two sets of clothes for every member in ${clothes.years[clothes.years.length - 1]}.`,
+  ];
+}
 
 export function facts() {
   const north = regionsLatest.find((r) => r.name === 'Northern')!;

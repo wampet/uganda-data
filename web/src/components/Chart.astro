@@ -5,6 +5,7 @@
 import { safeJson } from '../lib/json';
 import type { ChartSpec } from '../lib/chart-spec';
 import { monthLabel } from '../lib/data';
+import { sharedBySlug } from '../lib/share-charts';
 
 interface Props {
   id: string;
@@ -24,6 +25,7 @@ interface Props {
 }
 
 const { id, title, subtitle, height = 320, ranges = false, range = 'all', source, hint, table = true, share } = Astro.props;
+if (share && !sharedBySlug.has(share)) throw new Error(`Chart "${id}": share="${share}" has no entry in lib/share-charts.ts`);
 const n = Astro.props.spec.x?.length ?? 0;
 const spec = { ...Astro.props.spec, startIndex: range === 'all' ? 0 : Math.max(0, n - Number(range)) };
 const fmt = (v: number | null | undefined) =>

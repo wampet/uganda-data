@@ -258,6 +258,73 @@ def build_trade(records: list[dict]) -> None:
     })
 
 
+def _poverty_extra(records: list[dict]) -> dict:
+    """Poverty before and during COVID-19, and where household food comes from."""
+    from .parsers import wide
+
+    def rows_of(title_start):
+        src = _dataset(records, title_start)
+        return src, [r for r in wide.load(get_file(src["url"])) if any(v not in (None, "") for v in r)]
+    lab = lambda v: " ".join(str(v).split()) if v is not None else ""
+
+    # COVID-19: by residence (before / during) and by sub-region.
+    s_cr, rows = rows_of("Proportion of poor persons before and during Covid-19 by residence")
+    cols = [lab(c).lower() for c in rows[1][1:3]]
+    if cols != ["urban", "rural"]:
+        raise ValueError(f"poverty: unexpected COVID residence columns {cols}")
+    by = {lab(r[0]).lower(): [wide.num(v) for v in r[1:3]] for r in rows[2:]}
+    before = next(v for k, v in by.items() if k.startswith("before"))
+    during = next(v for k, v in by.items() if k.startswith("during"))
+    s_cs, rows = rows_of("Proportion of the poor persons before and during COVID19")
+    subregions = [{"name": lab(r[0]).replace("Westnile", "West Nile"), "before": wide.num(r[1]), "during": wide.num(r[2])}
+                  for r in rows[2:] if lab(r[0]) and wide.num(r[1]) is not None]
+    if len(subregions) < 10:
+        raise ValueError("poverty: COVID sub-region table looks incomplete")
+
+    # Food by source: market / own production / gift, 2015/16-2019/20. The 2019/20 block has an empty
+    # column after "Market", so columns are located from the second header row.
+    s_food, rows = rows_of("Share of food by source, residence, and sub-region")
+    yr_row, kind_row = rows[1], rows[2]
+    # Year labels are not aligned with their blocks (2019/20 sits one column late), so take them in
+    # order and start a new block at each "Market" column.
+    def norm(y):
+        a, b = str(y).strip().split("/")
+        return f"{a}/{b[-2:]}"
+    year_labels = [norm(c) for c in yr_row[1:] if c and "/" in str(c)]
+    blocks, bi = [], -1
+    for j, c in enumerate(kind_row):
+        k = lab(c).lower()
+        if k == "market":
+            bi += 1
+        if k in ("market", "own production", "gift"):
+            blocks.append((year_labels[bi], k, j))
+    if bi + 1 != len(year_labels):
+        raise ValueError("poverty: food-source blocks don't match the year labels")
+    years = sorted({y for y, _, _ in blocks})
+    food = []
+    for r in rows[3:]:
+        name = lab(r[0])
+        if not name or name.lower().startswith("source") or all(wide.num(v) is None for v in r[1:]):
+            continue
+        entry = {"name": name, "years": {}}
+        for y in years:
+            vals = {k: wide.num(r[j]) for yy, k, j in blocks if yy == y}
+            if abs(sum(v or 0 for v in vals.values()) - 100) > 1.5:
+                raise ValueError(f"poverty: food shares for {name} {y} don't add up to 100 ({vals})")
+            entry["years"][y] = vals
+        food.append(entry)
+
+    return {
+        "sources": {"covid_residence": _src(s_cr), "covid_subregion": _src(s_cs), "food": _src(s_food)},
+        "data": {
+            "covid": {"residence": {"Urban": {"before": before[0], "during": during[0]},
+                                    "Rural": {"before": before[1], "during": during[1]}},
+                      "subregions": subregions},
+            "food_source": {"years": years, "rows": food},
+        },
+    }
+
+
 def build_poverty(records: list[dict]) -> None:
     def read(title_start):
         r = _dataset(records, title_start)
@@ -269,6 +336,8 @@ def build_poverty(records: list[dict]) -> None:
     s_dyn, dyn = read("Household Poverty Dynamics between the Survey Periods")
     s_shoes, shoes = read("Possession of at least one pair of shoes by household members")
     s_blanket, blanket = read("Possession of a Blanket by Background Characteristics")
+    s_clothes, clothes = read("Possession of at least two sets of clothes by background characteristic")
+    extra = _poverty_extra(records)
     s_meals = _dataset(records, "Number of meals taken per day by place of residence")
 
     # National poverty rate: long series (1999/00-2019/20) + the newer table
@@ -319,7 +388,8 @@ def build_poverty(records: list[dict]) -> None:
     _write("poverty.json", {
         "sources": {k: _src(v) for k, v in {
             "headcount": s_head, "long": s_long, "absolute": s_abs, "dynamics": s_dyn,
-            "shoes": s_shoes, "blanket": s_blanket, "meals": s_meals}.items()},
+            "shoes": s_shoes, "blanket": s_blanket, "clothes": s_clothes, "meals": s_meals}.items()} | extra["sources"],
+        **extra["data"],
         "national": {"years": [y for y, _ in national], "rate": [v for _, v in national]},
         "poor_millions": {"years": sorted(poor), "values": [poor[y] for y in sorted(poor)]},
         "by_region": {"years": new_years, "rows": [{"name": r["label"], "values": r["values"]} for r in regions]},
@@ -331,6 +401,7 @@ def build_poverty(records: list[dict]) -> None:
         },
         "shoes": {"years": shoes["columns"], "rows": [{"group": r["group"], "name": r["label"], "values": r["values"]} for r in shoes["rows"]]},
         "blanket": {"years": blanket["columns"], "rows": [{"group": r["group"], "name": r["label"], "values": r["values"]} for r in blanket["rows"]]},
+        "clothes": {"years": clothes["columns"], "rows": [{"group": r["group"], "name": r["label"].strip(), "values": r["values"]} for r in clothes["rows"]]},
         "one_meal_2023_24": meals,
     })
 

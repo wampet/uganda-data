@@ -234,6 +234,23 @@ export const sharedCharts: SharedChart[] = [
     topic: 'People',
   },
   {
+    slug: 'uganda-poverty-covid',
+    title: 'Poverty before and during COVID-19',
+    subtitle: '% of people below the poverty line, by sub-region (survey estimates)',
+    description: V.extraFacts()[0],
+    spec: (() => {
+      const sub = [...V.covid.subregions].sort((a, b) => b.during - a.during);
+      return { kind: 'bar' as const, unit: '%', digits: 1, categories: sub.map((x) => x.name), series: [
+        { name: 'Before COVID-19', data: sub.map((x) => x.before), color: 'muted' as const },
+        { name: 'During COVID-19', data: sub.map((x) => x.during), color: 2 },
+      ], labelWidth: 120 };
+    })(),
+    height: 520,
+    source: src(V.sources.covid_subregion),
+    page: { href: '/people/poverty/poverty-in-uganda/', label: 'More on poverty' },
+    topic: 'People',
+  },
+  {
     slug: 'uganda-road-deaths',
     title: 'Road deaths in Uganda',
     subtitle: 'People killed on the roads, as reported to the police',
@@ -415,6 +432,26 @@ export const sharedCharts: SharedChart[] = [
     spec: { kind: 'bar', unit: '', digits: 0, categories: CR.categories.map((c) => c.name), series: [{ name: 'Cases reported', data: CR.categories.map((c) => c.reported) }], labelWidth: 190 },
     height: 460,
     source: src(CR.sources.categories),
+    page: { href: '/people/crime/crime-and-prisons/', label: 'More on crime and prisons' },
+    topic: 'People',
+  },
+  {
+    slug: 'uganda-crime-victims',
+    title: 'Who are the victims of crime in Uganda?',
+    subtitle: `Share of each crime’s victims by sex and age, ${CR.year}`,
+    description: CR.facts()[2],
+    spec: (() => {
+      const v = CR.victims.filter((x) => x.total >= 4000).sort((a, b) => b.total - a.total);
+      const sh = (k: 'male_adult' | 'male_child' | 'female_adult' | 'female_child') => v.map((x) => (100 * x[k]) / x.total);
+      return { kind: 'bar' as const, stacked: true, unit: '%', digits: 0, yMax: 100, categories: v.map((x) => x.name), series: [
+        { name: 'Men', data: sh('male_adult'), color: 1 },
+        { name: 'Boys under 18', data: sh('male_child'), color: 5 },
+        { name: 'Women', data: sh('female_adult'), color: 2 },
+        { name: 'Girls under 18', data: sh('female_child'), color: 4 },
+      ], labelWidth: 170 };
+    })(),
+    height: 460,
+    source: src(CR.sources.victims),
     page: { href: '/people/crime/crime-and-prisons/', label: 'More on crime and prisons' },
     topic: 'People',
   },
